@@ -5,7 +5,6 @@
  * Created on 23 grudzień 2015, 13:50
  */
 
-
 #include <cstdlib>
 #include <iostream>
 #include <vector>

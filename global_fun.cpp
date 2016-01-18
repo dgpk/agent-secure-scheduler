@@ -12,6 +12,7 @@
 #include <openssl/bn.h>
 #include "global_fun.h"
 
+
 #define ulong unsigned long int
 
 using namespace std;

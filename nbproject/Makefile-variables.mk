@@ -7,21 +7,21 @@ CND_BASEDIR=`pwd`
 CND_BUILDDIR=build
 CND_DISTDIR=dist
 # Debug configuration
-CND_PLATFORM_Debug=GNU-Linux-x86
-CND_ARTIFACT_DIR_Debug=dist/Debug/GNU-Linux-x86
+CND_PLATFORM_Debug=GNU-Linux
+CND_ARTIFACT_DIR_Debug=dist/Debug/GNU-Linux
 CND_ARTIFACT_NAME_Debug=agentsecurescheduler
-CND_ARTIFACT_PATH_Debug=dist/Debug/GNU-Linux-x86/agentsecurescheduler
-CND_PACKAGE_DIR_Debug=dist/Debug/GNU-Linux-x86/package
+CND_ARTIFACT_PATH_Debug=dist/Debug/GNU-Linux/agentsecurescheduler
+CND_PACKAGE_DIR_Debug=dist/Debug/GNU-Linux/package
 CND_PACKAGE_NAME_Debug=agentsecurescheduler.tar
-CND_PACKAGE_PATH_Debug=dist/Debug/GNU-Linux-x86/package/agentsecurescheduler.tar
+CND_PACKAGE_PATH_Debug=dist/Debug/GNU-Linux/package/agentsecurescheduler.tar
 # Release configuration
-CND_PLATFORM_Release=GNU-Linux-x86
-CND_ARTIFACT_DIR_Release=dist/Release/GNU-Linux-x86
+CND_PLATFORM_Release=GNU-Linux
+CND_ARTIFACT_DIR_Release=dist/Release/GNU-Linux
 CND_ARTIFACT_NAME_Release=agentsecurescheduler
-CND_ARTIFACT_PATH_Release=dist/Release/GNU-Linux-x86/agentsecurescheduler
-CND_PACKAGE_DIR_Release=dist/Release/GNU-Linux-x86/package
+CND_ARTIFACT_PATH_Release=dist/Release/GNU-Linux/agentsecurescheduler
+CND_PACKAGE_DIR_Release=dist/Release/GNU-Linux/package
 CND_PACKAGE_NAME_Release=agentsecurescheduler.tar
-CND_PACKAGE_PATH_Release=dist/Release/GNU-Linux-x86/package/agentsecurescheduler.tar
+CND_PACKAGE_PATH_Release=dist/Release/GNU-Linux/package/agentsecurescheduler.tar
 #
 # include compiler specific variables
 #

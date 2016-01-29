@@ -23,10 +23,10 @@
 using namespace std;
 using namespace ff;
 
-//#define REF
-//#define BBS
+#define REF
+#define BBS
 #define SHA
-//#define U
+#define U
 
 #define ulong unsigned long int
 #define numOfPackages 12
@@ -237,6 +237,9 @@ struct Emitter : ff_node_t<long> {
     // składowe publiczne struktury
     unsigned int wait_time = 300; // po rozesłaniu paczki (uwaga! nie po wykonaniu wszystkich zadań) czekamy tyle sekund (tut. 5 minut)
 
+    Emitter() {
+        srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD  !!!!!!!!!!!!!!
+    }
     //MODEL REFERECYJNY Z ROWNYM ROZZYLEM ZADAN -NIELOSOWYM CO 5 MIN
     //pojedynczy serwis rozsyla 100 zadan 12 razy wciagu godziny:60*60 sek=3600sek, 
     //rozsyl  w modelu referencyjnym co 5min=5x60sek=300sek 
@@ -261,7 +264,7 @@ struct Emitter : ff_node_t<long> {
 };
 
 struct EmitterBBS : ff_node_t<long> {
-    
+
     EmitterBBS() {
         srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD 
     }
@@ -276,7 +279,7 @@ struct EmitterBBS : ff_node_t<long> {
         ulong *key;
         //ulong *moments;
         ulong N = 100;
-        key = generateBBSKey(N);  //  ZA KAŻDYM RAZEM DOSTANIEMY INNY ROZKŁAD (chyba)
+        key = generateBBSKey(N); //  ZA KAŻDYM RAZEM DOSTANIEMY INNY ROZKŁAD (chyba)
         ulong *LicznikJedynek; //podaje ile jedynek wysapilo do tej w naszym ciagu - po wylosowaniu kazdego kolejnego elementu 
         LicznikJedynek = new ulong[N];
         int liczbaJedynek = 1; //podaje ile jedynek wysapilo do calym  naszym ciagu
@@ -369,13 +372,13 @@ struct EmitterBBS : ff_node_t<long> {
 };
 
 struct EmitterSHA : ff_node_t<long> {
-    
 
     EmitterSHA() {
         srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD 
     }
-    
+
     // Funkcja zamieniajaca hex to bin
+
     const char* hex_char_to_bin(char c) {
         switch (toupper(c)) {
             case '0': return "0000";
@@ -430,7 +433,7 @@ struct EmitterSHA : ff_node_t<long> {
     long *svc(long *) override {
         down_sem();
         int N = 512; // liczba bitow
-        int str_len = rand()%10;
+        int str_len = rand() % 10;
         char *str = new char[str_len]; // wiadomosc
         gen_random(str, str_len); //ZAWSZE DOSTANIEMY INNY ROZKŁAD
         char *mdString = NULL; // skrot
@@ -649,6 +652,31 @@ int main()
 }
  */
 
+void create_workers(std::vector<std::unique_ptr<ff_node> > *Workers, int nworkers) {
+    for (int i = 1; i <= nworkers; ++i) {
+        Workers->push_back(make_unique<WorkerA>());
+        cout << "WorkerA created" << endl;
+    }
+    for (int i = 1; i <= nworkers; ++i) {
+        Workers->push_back(make_unique<WorkerB>());
+        cout << "WorkerB created" << endl;
+    }
+    for (int i = 1; i <= nworkers; ++i) {
+        Workers->push_back(make_unique<WorkerC>());
+        cout << "WorkerC created" << endl;
+    }
+
+    for (int i = 1; i <= nworkers; ++i) {
+        Workers->push_back(make_unique<WorkerD>());
+        cout << "WorkerD created" << endl;
+    }
+
+    for (int i = 1; i <= nworkers; ++i) {
+        Workers->push_back(make_unique<WorkerE>());
+        cout << "WorkerE created" << endl;
+    }
+}
+
 int main(int argc, char **argv) {
 
 
@@ -687,48 +715,27 @@ int main(int argc, char **argv) {
 
     std::vector<std::unique_ptr<ff_node> > Workers;
 
-
-    for (int i = 1; i <= nworkers; ++i) {
-        Workers.push_back(make_unique<WorkerA>());
-        cout << "WorkerA created" << endl;
-    }
-    for (int i = 1; i <= nworkers; ++i) {
-        Workers.push_back(make_unique<WorkerB>());
-        cout << "WorkerB created" << endl;
-    }
-    for (int i = 1; i <= nworkers; ++i) {
-        Workers.push_back(make_unique<WorkerC>());
-        cout << "WorkerC created" << endl;
-    }
-
-    for (int i = 1; i <= nworkers; ++i) {
-        Workers.push_back(make_unique<WorkerD>());
-        cout << "WorkerD created" << endl;
-    }
-
-    for (int i = 1; i <= nworkers; ++i) {
-        Workers.push_back(make_unique<WorkerE>());
-        cout << "WorkerE created" << endl;
-    }
-
     init_sem();
 
     cout << "Czas start" << endl;
     clock_t begin = clock();
 
 #ifdef REF
-    //FARMA Z EMITEREM REFERENCYJNYM 
+    //FARMA Z EMITEREM REFERENCYJNYM
+    create_workers(&Workers, nworkers);
     ff_Farm<long> farm(std::move(Workers));
     farm.set_scheduling_ondemand(); // set auto scheduling
     Emitter E;
     Collector C(farm.getgt());
     farm.add_emitter(E); // add the specialized emitter
     farm.add_collector(C);
+
     if (farm.run_and_wait_end() < 0) error("running  REFERENCE farm");
 #endif
 
 #ifdef BBS
-    //FARMA Z EMITEREM BBS 
+    //FARMA Z EMITEREM BBS
+    create_workers(&Workers, nworkers);
     ff_Farm<long> farmBBS(std::move(Workers));
     farmBBS.set_scheduling_ondemand(); // set auto scheduling
     EmitterBBS EBBS;
@@ -739,7 +746,8 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef SHA
-    //FARMA Z EMITEREM SHA 
+    //FARMA Z EMITEREM SHA
+    create_workers(&Workers, nworkers);
     ff_Farm<long> farmSHA(std::move(Workers));
     farmSHA.set_scheduling_ondemand(); // set auto scheduling
     EmitterSHA ESHA;
@@ -750,7 +758,8 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef U
-    //FARMA Z EMITEREM JEDNOSTAJNYM 
+    //FARMA Z EMITEREM JEDNOSTAJNYM
+    create_workers(&Workers, nworkers);
     ff_Farm<long> farmU(std::move(Workers));
     farmU.set_scheduling_ondemand(); // set auto scheduling
     EmitterU EU;

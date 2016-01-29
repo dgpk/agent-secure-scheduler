@@ -17,5 +17,7 @@ void get_SHA512(char* str, char* res);
 
 ulong* generateBBSKey(ulong N);
 
+void gen_random(char *s, const int len);
+
 #endif	/* GLOBAL_FUN_H */
 

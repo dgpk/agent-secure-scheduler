@@ -115,7 +115,6 @@ ulong* generateBBSKey(ulong N) {
 	TWO = BN_new();
 	bnCtx = BN_CTX_new();
 	RAND_seed(rnd_seed, sizeof rnd_seed); /* or BN_generate_prime_ex may fail */
-
 	BN_generate_prime_ex(p, 768, 0, NULL, NULL, NULL);
 	BN_generate_prime_ex(q, 768, 0, NULL, NULL, NULL);
 	BN_mul(n, p, q, bnCtx);
@@ -141,4 +140,17 @@ ulong* generateBBSKey(ulong N) {
 	BN_free(TWO);
 	BN_CTX_free(bnCtx);
 	return z;
+}
+
+void gen_random(char *s, const int len) {
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+
+    for (int i = 0; i < len; ++i) {
+        s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+
+    s[len] = 0;
 }

@@ -157,6 +157,7 @@ void exportToCSV(char *model, unsigned int processingTime, unsigned int numOfPac
     fsout << "Czas wykonywania calego wsadu [s]\n";
     fsout << double(log_batch->endTime - log_batch->beginTime) / CLOCKS_PER_SEC << "\n\n";
     fsout << "KONIEC\n";
+    fsout.flush();
     fsout.close();
 }
 
@@ -778,7 +779,11 @@ public:
         //CZYLI ROZSYL NASTEPUJE W WYLOSOWANE[1]*60 ,WYLOSOWANE[2]*60,....WYLOSOWANE[12]*60  SEK 
 
         //pojedynczy serwis rozsyla 100 zadan x12 razy wciagu godziny:60*60 sek=3600sek,
-        pthread_create(&(time_thread), NULL, thread_timer, (void*) sleepTable);
+        TimerData td;
+        td.numOfPackages = numOfPackages;
+        td.timeTable = sleepTable;
+        pthread_create(&(time_thread), NULL, thread_timer, (void*) &td);
+        //pthread_create(&(time_thread), NULL, thread_timer, (void*) sleepTable);
         log_batch->beginTime = clock();
         for (int n = 0; n < numOfPackages; n++) {
             cout << "Paczka nr " << n << "  czeka na semafor" << endl;
@@ -977,7 +982,6 @@ int main(int argc, char **argv) {
 #ifdef U
     cout << "FARMA Z EMITEREM JEDNOSTAJNYM" << endl;
     init_logs(numOfPackages);
-    //std::vector<std::unique_ptr<ff_node> > WorkersU;
     create_workers(&Workers, nworkers);
     ff_Farm<Task> farmU(std::move(Workers));
     farmU.set_scheduling_ondemand(); // set auto scheduling

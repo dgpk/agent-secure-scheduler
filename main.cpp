@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <sys/types.h>
+#include <fstream>
 
 using namespace std;
 using namespace ff;
@@ -29,17 +30,135 @@ using namespace ff;
 #define U
 
 #define ulong unsigned long int
-#define numOfPackages 12
-#define sizeOfPackage 100
 
-sem_t semTable[numOfPackages];
-//int taskTable[numOfPackages];
-//pthread_t *threads;
+sem_t *semTable; // tablica semaforów
 
-//struct TimerData {
-//    int packageID = 0;
-//    int time = 0;
-//};
+enum model {
+    modelREF,
+    modelBBS,
+    modelSHA,
+    modelU
+};
+
+// charakterystyka zadania
+
+struct Task {
+    int taskID;
+    int packageID;
+    model emmiterModel;
+
+    Task(int _taskID, int _packageID, model _emmiterModel) : taskID(_taskID), packageID(_packageID), emmiterModel(_emmiterModel) {
+    }
+};
+
+// dane przekazywane do watku obliczajacego czas (nadzorcy czasu)
+
+struct TimerData {
+    int *timeTable;
+    int numOfPackages;
+};
+
+// wektor dla każdego modelu
+
+struct TaskLog {
+    //worker, package, czas zadania
+    char workerType;
+    int workerID;
+    int packageID;
+    int taskNumber;
+    //double taskTime;
+    clock_t beginTime = 0;
+    clock_t endTime = 0;
+    
+    TaskLog(char _workerType, int _workerID, int _packageID, int _taskNumber, clock_t _beginTime, clock_t _endTime)
+    : workerType(_workerType), workerID(_workerID), packageID(_packageID), taskNumber(_taskNumber), beginTime(_beginTime), endTime(_endTime) {
+    }
+};
+
+// wektor dla każdego modelu
+
+struct PackageLog {
+    //package, czas pakietu
+    int packageID;
+    //double packageTime;
+    clock_t beginTime = 0;
+    clock_t endTime = 0;
+    
+    PackageLog(int _packageID, clock_t _beginTime, clock_t _endTime) : packageID(_packageID), beginTime(_beginTime), endTime(_endTime) {
+    }
+};
+
+// obiekt dla każdego modelu
+
+struct BatchLog {
+    // czas całego batcha
+    //double batchTime;
+    clock_t beginTime = 0;
+    clock_t endTime = 0;
+
+    BatchLog() : beginTime(0), endTime(0) {
+    }
+
+    BatchLog(clock_t _beginTime, clock_t _endTime) : beginTime(_beginTime), endTime(_endTime) {
+    }
+};
+
+
+//vector<TaskLog> log_tlREF, log_tlBBS, log_tlSHA, log_tlU;
+//vector<PackageLog> log_plREF, log_plBBS, log_plSHA, log_plU;
+//BatchLog *log_blREF, *log_blBBS, *log_blSHA, *log_blU;
+
+vector<TaskLog> log_tasks;
+vector<PackageLog> log_packages;
+BatchLog *log_batch = NULL;
+
+void init_logs(int numOfPackages) {
+    if(log_batch)
+        delete log_batch;
+    log_batch = new BatchLog;
+    log_tasks.clear();
+    log_packages.clear();
+    for (int i = 0; i < numOfPackages; i++) {
+        log_packages.push_back(PackageLog(i, 0, 0));
+    }
+}
+
+void exportToCSV(char *model, unsigned int processingTime, unsigned int numOfPackages, unsigned int sizeOfPackage) {
+    
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    char name[50];
+    sprintf(name, "logs/Log_%s_%d-%d-%d_%d.%d.%d.csv", model, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    ofstream fsout;
+    fsout.open(name, ios::out);
+    if (!fsout.is_open()) {
+        cerr << "Blad zapisu do pliku!" << endl;
+        return;
+    }
+    fsout << model << "\n\n";
+    fsout << "Parametry\n";
+    fsout << "processingTime:;" << processingTime << "\n";
+    fsout << "numOfPackages:;" << numOfPackages << "\n";
+    fsout << "sizeOfPackage:;" << sizeOfPackage << "\n\n";
+    
+    fsout << "Czas wykonywania poszczegolnych zadan [s]\n";
+    fsout << "workerType;workerID;packageID;taskNumber;taskTime\n";
+    for (vector<TaskLog>::iterator it = log_tasks.begin(); it != log_tasks.end(); ++it) {
+        fsout << it->workerType << ";" << it->workerID << ";" << it->packageID << ";" << it->taskNumber << ";" << double(it->endTime - it->beginTime) / CLOCKS_PER_SEC << "\n";
+    }
+    fsout << "\n";
+    fsout << "Czas wykonywania poszczegolnych pakietow [s]\n";
+    fsout << "packageID;packageTime\n";
+    for (vector<PackageLog>::iterator it = log_packages.begin(); it != log_packages.end(); ++it) {
+        fsout << it->packageID << ";" << double(it->endTime - it->beginTime) / CLOCKS_PER_SEC << "\n";
+    }
+    
+    fsout << "\n";
+    fsout << "Czas wykonywania calego wsadu [s]\n";
+    fsout << double(log_batch->endTime - log_batch->beginTime) / CLOCKS_PER_SEC << "\n\n";
+    fsout << "KONIEC\n";
+    fsout.close();
+}
 
 //Przygotowanie zadania, które wiemy dokładnieile będzie trwało
 
@@ -51,7 +170,8 @@ void czekaj(int iSekundy) {
 
 // Inicjalizujemy semafory (funkcja wywoływana raz w main)
 
-void init_sem() {
+void init_sem(unsigned int numOfPackages) {
+    semTable = new sem_t[numOfPackages];
     for (int i = 0; i < numOfPackages; i++) {
         sem_init(&semTable[i], 0, 1);
         //taskTable[i] = sizeOfPackage;
@@ -61,7 +181,7 @@ void init_sem() {
 
 // Opuszczamy semafory (funkcja wywoływana w każdym emmiterze na początku)
 
-void down_sem() {
+void down_sem(unsigned int numOfPackages) {
     for (int i = 0; i < numOfPackages; i++) {
         sem_wait(&semTable[i]);
         //taskTable[i] = sizeOfPackage;
@@ -70,10 +190,10 @@ void down_sem() {
 
 // Niszczymy semafory (funkcja wywoływana raz w main - na końcu)
 
-void destroy() {
+void destroy(unsigned int numOfPackages) {
     for (int i = 0; i < numOfPackages; i++)
         sem_destroy(&semTable[i]);
-    //delete[] threads;
+    delete[] semTable;
 }
 
 // Funkcja która zarządza dostępem do paczek zadań 
@@ -83,10 +203,10 @@ void destroy() {
 // Po podniesieniu wszystkich semaforów wątek ginie
 
 void* thread_timer(void *ptr) {
-    int *timeTable = (int *) ptr;
-    for (int i = 0; i < numOfPackages; i++) {
-        cout << "Paczka " << i << "  Watek czeka " << timeTable[i] << endl;
-        sleep(timeTable[i]);
+    TimerData *td = (TimerData *) ptr;
+    for (int i = 0; i < td->numOfPackages; i++) {
+        cout << "Paczka " << i << "  Watek czeka " << td->timeTable[i] << endl;
+        sleep(td->timeTable[i]);
         sem_post(&semTable[i]);
         cout << "podniesiono semafor " << i << endl;
     }
@@ -94,11 +214,12 @@ void* thread_timer(void *ptr) {
 
 }
 
-struct WorkerA : ff_node_t<long> {
+struct WorkerA : ff_node_t<Task> {
 
-    long *svc(long *task) override {
+    Task *svc(Task *task) override {
+        clock_t begin = clock();
         //worker szybki,nie usypiamy 
-        std::cout << "WorkerA has got the task " << *task << "\n";
+        std::cout << "WorkerA has got the task " << task->taskID << "\n";
         /* if  *task % 5==0 licz zadanie małe 
          * if  *task % 5==1 licz zadanie srednie
          * if  *task % 5 =2 licz zadanie duze
@@ -107,27 +228,43 @@ struct WorkerA : ff_node_t<long> {
        
          */
         /* rejestrujemy jakie taski dostał  ten worker w kolejnych rozdaniach */
-
-        if (*task % 5 == 0) czekaj(60);
-        if (*task % 5 == 1) czekaj(120);
-        if (*task % 5 == 2) czekaj(180);
-        if (*task % 5 == 3) czekaj(480);
-        if (*task % 5 == 4) czekaj(600);
+        int taskTime = 0;
+        if (task->taskID % 5 == 0) taskTime = 60;
+        if (task->taskID % 5 == 1) taskTime = 120;
+        if (task->taskID % 5 == 2) taskTime = 180;
+        if (task->taskID % 5 == 3) taskTime = 480;
+        if (task->taskID % 5 == 4) taskTime = 600;
+        czekaj(taskTime);
         //kiedys bedzie tak:
         //double exec_time = matrix_multiplication(128, 5);
         // pierwszy argument to wymiar macierzy kwadratowej, tutaj 128x128
         // drugi, to ile razy ma się to przemnożyć
 
+        log_tasks.push_back(TaskLog('A', get_my_id(), task->packageID, task->taskID, begin, clock()));
+
+        //        switch (task->emmiterModel) {
+        //            case modelREF:
+        //                //log_tlREF.push_back(new TaskLog('A', get_my_id(), int _packageID, (int)*task, int taskTime));
+        //                break;
+        //            case modelBBS:
+        //                break;
+        //            case modelSHA:
+        //                break;
+        //            case modelU:
+        //                break;
+        //        }
+
         return task;
     }
 };
 
-struct WorkerB : ff_node_t<long> {
+struct WorkerB : ff_node_t<Task> {
 
-    long *svc(long *task) override {
+    Task *svc(Task *task) override {
+        clock_t begin = clock();
         //worker wolniejszy, usypiamy 
+        std::cout << "WorkerB has got the task " << task->taskID << "\n";
         czekaj(30);
-        std::cout << "WorkerB has got the task " << *task << "\n";
         /* if  *task % 5==0 licz zadanie małe
          * if  *task % 5==1 licz zadanie srednie
          * if  *task % 5 =2 licz zadanie duze
@@ -135,12 +272,14 @@ struct WorkerB : ff_node_t<long> {
          * if  *task  % 5 =4 licz zadanie olbrzymie
        
          */
-
-        if (*task % 5 == 0) czekaj(60);
-        if (*task % 5 == 1) czekaj(120);
-        if (*task % 5 == 2) czekaj(180);
-        if (*task % 5 == 3) czekaj(480);
-        if (*task % 5 == 4) czekaj(600);
+        int taskTime = 0;
+        if (task->taskID % 5 == 0) taskTime = 60;
+        if (task->taskID % 5 == 1) taskTime = 120;
+        if (task->taskID % 5 == 2) taskTime = 180;
+        if (task->taskID % 5 == 3) taskTime = 480;
+        if (task->taskID % 5 == 4) taskTime = 600;
+        czekaj(taskTime);
+        log_tasks.push_back(TaskLog('B', get_my_id(), task->packageID, task->taskID, begin, clock()));
         //double exec_time = matrix_multiplication(128, 5);
         // pierwszy argument to wymiar macierzy kwadratowej, tutaj 128x128
         // drugi, to ile razy ma się to przemnożyć
@@ -149,13 +288,15 @@ struct WorkerB : ff_node_t<long> {
     }
 };
 
-struct WorkerC : ff_node_t<long> {
+struct WorkerC : ff_node_t<Task> {
 
-    long *svc(long *task) override {
+    Task *svc(Task *task) override {
+        clock_t begin = clock();
         //worker wolniejszy, usypiamy 
+
+        std::cout << "WorkerC has got the task " << task->taskID << "\n";
+        //printf("WorkerC has got the task %ld\n", *((long*) task));
         czekaj(75);
-        //std::cout << "WorkerC has got the task " << *task << "\n";
-        printf("WorkerC has got the task %ld\n", *((long*) task));
         /* if  *task % 5==0 licz zadanie małe
          * if  *task % 5==1 licz zadanie srednie
          * if  *task % 5 =2 licz zadanie duze
@@ -163,12 +304,14 @@ struct WorkerC : ff_node_t<long> {
          * if  *task  % 5 =4 licz zadanie olbrzymie
        
          */
-
-        if (*task % 5 == 0) czekaj(60);
-        if (*task % 5 == 1) czekaj(120);
-        if (*task % 5 == 2) czekaj(180);
-        if (*task % 5 == 3) czekaj(480);
-        if (*task % 5 == 4) czekaj(600);
+        int taskTime = 0;
+        if (task->taskID % 5 == 0) taskTime = 60;
+        if (task->taskID % 5 == 1) taskTime = 120;
+        if (task->taskID % 5 == 2) taskTime = 180;
+        if (task->taskID % 5 == 3) taskTime = 480;
+        if (task->taskID % 5 == 4) taskTime = 600;
+        czekaj(taskTime);
+        log_tasks.push_back(TaskLog('C', get_my_id(), task->packageID, task->taskID, begin, clock()));
         //double exec_time = matrix_multiplication(128, 5);
         // pierwszy argument to wymiar macierzy kwadratowej, tutaj 128x128
         // drugi, to ile razy ma się to przemnożyć
@@ -177,13 +320,14 @@ struct WorkerC : ff_node_t<long> {
     }
 };
 
-struct WorkerD : ff_node_t<long> {
+struct WorkerD : ff_node_t<Task> {
 
-    long *svc(long *task) override {
+    Task *svc(Task *task) override {
+        clock_t begin = clock();
         //worker wolniejszy, usypiamy 
+
+        std::cout << "WorkerD has got the task " << task->taskID << "\n";
         czekaj(120);
-        std::cout << "WorkerD has got the task " << *task << "\n";
-
         /* if  *task % 5==0 licz zadanie małe
          * if  *task % 5==1 licz zadanie srednie
          * if  *task % 5 =2 licz zadanie duze
@@ -192,11 +336,14 @@ struct WorkerD : ff_node_t<long> {
        
          */
 
-        if (*task % 5 == 0) czekaj(60);
-        if (*task % 5 == 1) czekaj(120);
-        if (*task % 5 == 2) czekaj(180);
-        if (*task % 5 == 3) czekaj(480);
-        if (*task % 5 == 4) czekaj(600);
+        int taskTime = 0;
+        if (task->taskID % 5 == 0) taskTime = 60;
+        if (task->taskID % 5 == 1) taskTime = 120;
+        if (task->taskID % 5 == 2) taskTime = 180;
+        if (task->taskID % 5 == 3) taskTime = 480;
+        if (task->taskID % 5 == 4) taskTime = 600;
+        czekaj(taskTime);
+        log_tasks.push_back(TaskLog('D', get_my_id(), task->packageID, task->taskID, begin, clock()));
         //double exec_time = matrix_multiplication(128, 5);
         // pierwszy argument to wymiar macierzy kwadratowej, tutaj 128x128
         // drugi, to ile razy ma się to przemnożyć
@@ -205,13 +352,14 @@ struct WorkerD : ff_node_t<long> {
     }
 };
 
-struct WorkerE : ff_node_t<long> {
+struct WorkerE : ff_node_t<Task> {
 
-    long *svc(long *task) override {
+    Task *svc(Task *task) override {
+        clock_t begin = clock();
         //worker wolniejszy, usypiamy 
-        czekaj(150);
-        std::cout << "WorkerE has got the task " << *task << "\n";
 
+        std::cout << "WorkerE has got the task " << task->taskID << "\n";
+        czekaj(150);
         /* if  *task % 5==0 licz zadanie małe
          * if  *task % 5==1 licz zadanie srednie
          * if  *task % 5 =2 licz zadanie duze
@@ -220,11 +368,14 @@ struct WorkerE : ff_node_t<long> {
        
          */
 
-        if (*task % 5 == 0) czekaj(60);
-        if (*task % 5 == 1) czekaj(120);
-        if (*task % 5 == 2) czekaj(180);
-        if (*task % 5 == 3) czekaj(480);
-        if (*task % 5 == 4) czekaj(600);
+        int taskTime = 0;
+        if (task->taskID % 5 == 0) taskTime = 60;
+        if (task->taskID % 5 == 1) taskTime = 120;
+        if (task->taskID % 5 == 2) taskTime = 180;
+        if (task->taskID % 5 == 3) taskTime = 480;
+        if (task->taskID % 5 == 4) taskTime = 600;
+        czekaj(taskTime);
+        log_tasks.push_back(TaskLog('E', get_my_id(), task->packageID, task->taskID, begin, clock()));
         //double exec_time = matrix_multiplication(128, 5);
         // pierwszy argument to wymiar macierzy kwadratowej, tutaj 128x128
         // drugi, to ile razy ma się to przemnożyć
@@ -233,11 +384,15 @@ struct WorkerE : ff_node_t<long> {
     }
 };
 
-struct Emitter : ff_node_t<long> {
+struct Emitter : ff_node_t<Task> {
     // składowe publiczne struktury
-    unsigned int wait_time = 300; // po rozesłaniu paczki (uwaga! nie po wykonaniu wszystkich zadań) czekamy tyle sekund (tut. 5 minut)
+    //unsigned int wait_time = 300; // po rozesłaniu paczki (uwaga! nie po wykonaniu wszystkich zadań) czekamy tyle sekund (tut. 5 minut)
+private:
+    unsigned int processingTime, numOfPackages, sizeOfPackage, readyTime;
+public:
 
-    Emitter() {
+    Emitter(unsigned int _processingTime = 3600, unsigned int _numOfPackages = 12, unsigned int _sizeOfPackage = 10, unsigned int _readyTime = 300)
+    : processingTime(_processingTime), numOfPackages(_numOfPackages), sizeOfPackage(_sizeOfPackage), readyTime(_readyTime) {
         srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD  !!!!!!!!!!!!!!
     }
     //MODEL REFERECYJNY Z ROWNYM ROZZYLEM ZADAN -NIELOSOWYM CO 5 MIN
@@ -245,28 +400,36 @@ struct Emitter : ff_node_t<long> {
     //rozsyl  w modelu referencyjnym co 5min=5x60sek=300sek 
     // funkcja rozsyłająca zadania
 
-    long *svc(long *) override {
-        down_sem();
+    Task *svc(Task *) override {
+        cout << "Start Emitter\n";
+        //down_sem(numOfPackages);
         //model ma rozesłać paczki 12 razy, więc...
+        log_batch->beginTime = clock();
         for (int n = 0; n < numOfPackages; n++) {
             cout << "Paczka nr " << n << endl;
             //Rozsyłamy zadania
-            for (long i = 0; i < sizeOfPackage; ++i) {
-                ff_send_out(new long(i));
+            log_packages[n].beginTime = clock();
+            for (int i = 0; i < sizeOfPackage; ++i) {
+                ff_send_out(new Task(i, n, modelREF));
             }
             cout << "Paczka nr " << n << " - wszystkie zadania zostaly rozeslane" << endl;
-            cout << "Czekamy 5 minut - gromadzimy zadania :)" << endl;
+            cout << "Czekamy - gromadzimy zadania :)" << endl;
             //czekamy 5 minut (300 sec)
-            sleep(wait_time);
+            sleep(readyTime);
         }
+        //log_batch->endTime = clock();
         return EOS;
     }
 };
 
-struct EmitterBBS : ff_node_t<long> {
+struct EmitterBBS : ff_node_t<Task> {
+private:
+    unsigned int processingTime, numOfPackages, sizeOfPackage;
+public:
 
-    EmitterBBS() {
-        srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD 
+    EmitterBBS(unsigned int _processingTime = 3600, unsigned int _numOfPackages = 12, unsigned int _sizeOfPackage = 10)
+    : processingTime(_processingTime), numOfPackages(_numOfPackages), sizeOfPackage(_sizeOfPackage) {
+        srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD  !!!!!!!!!!!!!!
     }
     //MODEL Z BBSOWYM ROZSYLEM ZADAN - LOSOWYM ZGODNIE Z BBS 
     //pojedynczy serwis rozsyla 100 zadan x12 razy wciagu godziny:60*60 sek=3600sek, ale robi to zgodnie zmodelem BBS
@@ -274,8 +437,9 @@ struct EmitterBBS : ff_node_t<long> {
 
     //EMITER WYZNACZA SOBIE MOMENTY DO ROZSYLU ZADAN, POTRZeBUJEMY TYLE ELEMENTOW CIAGU KEY, ABY POJAWILO SIE W NIM 12 JEDYNEK  
 
-    long *svc(long *) override {
-        down_sem();
+    Task *svc(Task *) override {
+        cout << "Start EmitterBBS\n";
+        //down_sem(numOfPackages);
         ulong *key;
         //ulong *moments;
         ulong N = 100;
@@ -309,7 +473,7 @@ struct EmitterBBS : ff_node_t<long> {
                 //LicznikJedynek[i] = LiczbaJedynek;
                 //if (LiczbaJedynek == 12) stop = i;
                 liczbaJedynek++;
-                if (liczbaJedynek == 12) {
+                if (liczbaJedynek == numOfPackages) {
                     stop = i;
                     break;
                 }
@@ -336,7 +500,7 @@ struct EmitterBBS : ff_node_t<long> {
 
         //wyznaczenie ilosci przedzialow,na ktore dzielimy godzine tj 3600 sek:
 
-        ulong TimeUnit = floor(3600 / (stop + 1)); //np  floor 3600/25=  144  co 144sek  nastepuje check, czy trzeba rozsylac, czy nie 
+        ulong TimeUnit = floor(processingTime / (stop + 1)); //np  floor 3600/25=  144  co 144sek  nastepuje check, czy trzeba rozsylac, czy nie 
         //ulong jest typem naturalnym,wiec jesli wyskoczy ulamek, trzeba zakoraglic,zaokraglamy w dol bo mamy ograniczenia czasowe od gory 
         //TimeUnit jest paczka czasu, w ktorej jesli wypadla  jedynka to rozsylamy zadania, jesli zero, nic nie robimy 
 
@@ -350,19 +514,24 @@ struct EmitterBBS : ff_node_t<long> {
             (sleepTable[n]) *= TimeUnit;
 
         }
-        pthread_create(&(time_thread), NULL, thread_timer, (void*) sleepTable);
-
+        TimerData td;
+        td.numOfPackages = numOfPackages;
+        td.timeTable = sleepTable;
+        pthread_create(&(time_thread), NULL, thread_timer, (void*) &td);
+        log_batch->beginTime = clock();
         for (int n = 0; n < numOfPackages; n++) {
             cout << "Paczka nr " << n << "  czeka na semafor" << endl;
+            log_packages[n].beginTime = clock(); // Uwaga! doliczamy czas oczekiwania na zadania!!!!!!!
             sem_wait(&semTable[n]);
             cout << "Paczka nr " << n << " rozsylana" << endl;
             //Rozsyłamy zadania
-            for (long i = 0; i < sizeOfPackage; ++i) {
-                ff_send_out(new long(i));
+            for (int i = 0; i < sizeOfPackage; ++i) {
+                ff_send_out(new Task(i, n, modelBBS));
             }
             cout << "Paczka nr " << n << " - wszystkie zadania zostaly rozeslane" << endl;
             sem_post(&semTable[n]);
         }
+        //log_batch->endTime = clock();
         pthread_join(time_thread, NULL);
 
         free(key);
@@ -371,10 +540,14 @@ struct EmitterBBS : ff_node_t<long> {
     }//koniec serwisu
 };
 
-struct EmitterSHA : ff_node_t<long> {
+struct EmitterSHA : ff_node_t<Task> {
+private:
+    unsigned int processingTime, numOfPackages, sizeOfPackage;
+public:
 
-    EmitterSHA() {
-        srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD 
+    EmitterSHA(unsigned int _processingTime = 3600, unsigned int _numOfPackages = 12, unsigned int _sizeOfPackage = 10)
+    : processingTime(_processingTime), numOfPackages(_numOfPackages), sizeOfPackage(_sizeOfPackage) {
+        srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD  !!!!!!!!!!!!!!
     }
 
     // Funkcja zamieniajaca hex to bin
@@ -430,8 +603,9 @@ struct EmitterSHA : ff_node_t<long> {
     //przygotowanie zmienych do zarzadzania czasem  rozsylu zadan 
     //SHA512
 
-    long *svc(long *) override {
-        down_sem();
+    Task *svc(Task *) override {
+        cout << "Start EmitterSHA\n";
+        //down_sem(numOfPackages);
         int N = 512; // liczba bitow
         int str_len = rand() % 10;
         char *str = new char[str_len]; // wiadomosc
@@ -451,7 +625,7 @@ struct EmitterSHA : ff_node_t<long> {
         int liczbaJedynek = 1; //podaje ile jedynek wysapilo do calym  naszym ciagu
         //int start = 0; // kiedy wystapila pierwsza jedynka
         int stop = 0; // kiedy wystapila dwunasta jedynka,
-        pthread_t thread;
+        pthread_t time_thread;
 
         //TimerData timerData[numOfPackages];
         int *sleepTable; // ta tablica informuje ile czekac na kolejne wysłanie zadań
@@ -471,7 +645,7 @@ struct EmitterSHA : ff_node_t<long> {
             if (SHAbin[i] == '1') {
 
                 liczbaJedynek++;
-                if (liczbaJedynek == 12) {
+                if (liczbaJedynek == numOfPackages) {
                     stop = i;
                     break;
                 }
@@ -497,7 +671,7 @@ struct EmitterSHA : ff_node_t<long> {
 
         //wyznaczenie ilosci przedzialow,na ktore dzielimy godzine tj 3600 sek:
 
-        ulong TimeUnit = floor(3600 / (stop + 1)); //np  floor 3600/25=  144  co 144sek  nastepuje check, czy trzeba rozsylac, czy nie 
+        ulong TimeUnit = floor(processingTime / (stop + 1)); //np  floor 3600/25=  144  co 144sek  nastepuje check, czy trzeba rozsylac, czy nie 
         //ulong jest typem naturalnym,wiec jesli wyskoczy ulamek, trzeba zakoraglic,zaokraglamy w dol bo mamy ograniczenia czasowe od gory 
         //TimeUnit jest paczka czasu, w ktorej jesli wypadla  jedynka to rozsylamy zadania, jesli zero, nic nie robimy 
 
@@ -511,20 +685,25 @@ struct EmitterSHA : ff_node_t<long> {
             (sleepTable[n]) *= TimeUnit;
 
         }
-        pthread_create(&(thread), NULL, thread_timer, (void*) sleepTable);
-
+        TimerData td;
+        td.numOfPackages = numOfPackages;
+        td.timeTable = sleepTable;
+        pthread_create(&(time_thread), NULL, thread_timer, (void*) &td);
+        log_batch->beginTime = clock();
         for (int n = 0; n < numOfPackages; n++) {
             cout << "Paczka nr " << n << "  czeka na semafor" << endl;
+            log_packages[n].beginTime = clock(); // Uwaga! doliczamy czas oczekiwania na zadania!!!!!!!
             sem_wait(&semTable[n]);
             cout << "Paczka nr " << n << " rozsylana" << endl;
             //Rozsyłamy zadania
             for (long i = 0; i < sizeOfPackage; ++i) {
-                ff_send_out(new long(i));
+                ff_send_out(new Task(i, n, modelSHA));
             }
             cout << "Paczka nr " << n << " - wszystkie zadania zostaly rozeslane" << endl;
             sem_post(&semTable[n]);
         }
-        pthread_join(thread, NULL);
+        //log_batch->endTime = clock();
+        pthread_join(time_thread, NULL);
 
         delete[] LicznikJedynek;
         delete[] mdString;
@@ -533,11 +712,16 @@ struct EmitterSHA : ff_node_t<long> {
 
 };
 
-struct EmitterU : ff_node_t<long> {
+struct EmitterU : ff_node_t<Task> {
     //MODEL Z ROZKLADEMJEDNOSTAJNYM  ROZSYLEM ZADAN -LOSOWYM 
     //pojedynczy serwis rozsyla 100 zadan x12 razy wciagu godziny:60*60 sek=3600sek, 
 
-    EmitterU() {
+private:
+    unsigned int processingTime, numOfPackages, sizeOfPackage;
+public:
+
+    EmitterU(unsigned int _processingTime = 3600, unsigned int _numOfPackages = 12, unsigned int _sizeOfPackage = 10)
+    : processingTime(_processingTime), numOfPackages(_numOfPackages), sizeOfPackage(_sizeOfPackage) {
         srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD  !!!!!!!!!!!!!!
     }
 
@@ -560,11 +744,12 @@ struct EmitterU : ff_node_t<long> {
     }
 
     int wylosuj() {
-        return ( rand() % 60) + 1; // CZY NIE POWINNO BYC 59 ?????
+        return ( rand() % (processingTime / 60) + 1);
     }
 
-    long *svc(long *) override {
-        down_sem();
+    Task *svc(Task *) override {
+        cout << "Start EmitterU\n";
+        //down_sem(numOfPackages);
         // jednostajny  POTRZEBUJEMY 12 LICZB z zakresu 1 do 60, bez powtorzen  !!
         //tablica wylosowanych przechowuje liczby 
         pthread_t time_thread;
@@ -594,18 +779,20 @@ struct EmitterU : ff_node_t<long> {
 
         //pojedynczy serwis rozsyla 100 zadan x12 razy wciagu godziny:60*60 sek=3600sek,
         pthread_create(&(time_thread), NULL, thread_timer, (void*) sleepTable);
-
+        log_batch->beginTime = clock();
         for (int n = 0; n < numOfPackages; n++) {
             cout << "Paczka nr " << n << "  czeka na semafor" << endl;
+            log_packages[n].beginTime = clock(); // Uwaga! doliczamy czas oczekiwania na zadania!!!!!!!
             sem_wait(&semTable[n]);
             cout << "Paczka nr " << n << " rozsylana" << endl;
             //Rozsyłamy zadania
             for (long i = 0; i < sizeOfPackage; ++i) {
-                ff_send_out(new long(i));
+                ff_send_out(new Task(i, n, modelU));
             }
             cout << "Paczka nr " << n << " - wszystkie zadania zostaly rozeslane" << endl;
             sem_post(&semTable[n]);
         }
+        //log_batch->endTime = clock();
         pthread_join(time_thread, NULL);
 
         delete[] sleepTable;
@@ -618,14 +805,28 @@ struct EmitterU : ff_node_t<long> {
 
 //Poisson  TODO
 
-struct Collector : ff_node_t<long> {
+struct Collector : ff_node_t<Task> {
     ff_gatherer * const gt;
+    unsigned int numOfPackages;
+    unsigned int sizeOfPackage;
+    int *controlTable;
 
-    Collector(ff_gatherer * const gt) : gt(gt) {
+    Collector(ff_gatherer * const gt, unsigned int _numOfPackages, unsigned int _sizeOfPackage)
+    : gt(gt), numOfPackages(_numOfPackages), sizeOfPackage(_sizeOfPackage) {
+        controlTable = new int[numOfPackages]();
     }
 
-    long *svc(long *task) override {
+    ~Collector() {
+        delete [] controlTable;
+    }
+
+    Task *svc(Task *task) override {
         //std::cout << "received task from Worker " << gt->get_channel_id() << "\n";
+        controlTable[task->packageID]++;
+        if (controlTable[task->packageID] == sizeOfPackage) {
+            // mamy ostatnie zadanie
+            log_packages[task->packageID].endTime = clock();
+        }
         delete task;
         return GO_ON;
     }
@@ -712,61 +913,81 @@ int main(int argc, char **argv) {
 
     //ilosc workerow danego typu,tutaj -po jednym 
     int nworkers = 1;
+    unsigned int processingTime = 3600; // Godzina na wykonanie wszystkich paczek
+    unsigned int numOfPackages = 12; // Liczba paczek na processingTime
+    unsigned int sizeOfPackage = 15; // liczba zadań w paczce
 
+
+
+    init_sem(numOfPackages);
+    down_sem(numOfPackages);
     std::vector<std::unique_ptr<ff_node> > Workers;
 
-    init_sem();
-
-    cout << "Czas start" << endl;
+    cout << "Czas start " << endl;
     clock_t begin = clock();
 
+
 #ifdef REF
-    //FARMA Z EMITEREM REFERENCYJNYM
+    cout << "FARMA Z EMITEREM REFERENCYJNYM" << endl;
+    init_logs(numOfPackages);
     create_workers(&Workers, nworkers);
-    ff_Farm<long> farm(std::move(Workers));
+    ff_Farm<Task> farm(std::move(Workers));
     farm.set_scheduling_ondemand(); // set auto scheduling
-    Emitter E;
-    Collector C(farm.getgt());
+    Emitter E(processingTime, numOfPackages, sizeOfPackage, 300);
+    Collector C(farm.getgt(), numOfPackages, sizeOfPackage);
     farm.add_emitter(E); // add the specialized emitter
     farm.add_collector(C);
-
     if (farm.run_and_wait_end() < 0) error("running  REFERENCE farm");
+    log_batch->endTime = clock();
+    exportToCSV("REF", processingTime, numOfPackages, sizeOfPackage);
 #endif
 
 #ifdef BBS
-    //FARMA Z EMITEREM BBS
+    cout << "FARMA Z EMITEREM BBS" << endl;
+    init_logs(numOfPackages);
+    //std::vector<std::unique_ptr<ff_node> > WorkersBBS;
     create_workers(&Workers, nworkers);
-    ff_Farm<long> farmBBS(std::move(Workers));
+    ff_Farm<Task> farmBBS(std::move(Workers));
     farmBBS.set_scheduling_ondemand(); // set auto scheduling
-    EmitterBBS EBBS;
-    Collector CBBS(farmBBS.getgt());
+    EmitterBBS EBBS(processingTime, numOfPackages, sizeOfPackage);
+    Collector CBBS(farmBBS.getgt(), numOfPackages, sizeOfPackage);
     farmBBS.add_emitter(EBBS); // add the specialized emitter
     farmBBS.add_collector(CBBS);
     if (farmBBS.run_and_wait_end() < 0) error("running BBS  farm");
+    log_batch->endTime = clock();
+    exportToCSV("BBS", processingTime, numOfPackages, sizeOfPackage);
 #endif
 
 #ifdef SHA
-    //FARMA Z EMITEREM SHA
+    cout << "FARMA Z EMITEREM SHA" << endl;
+    init_logs(numOfPackages);
+    //std::vector<std::unique_ptr<ff_node> > WorkersSHA;
     create_workers(&Workers, nworkers);
-    ff_Farm<long> farmSHA(std::move(Workers));
+    ff_Farm<Task> farmSHA(std::move(Workers));
     farmSHA.set_scheduling_ondemand(); // set auto scheduling
-    EmitterSHA ESHA;
-    Collector CSHA(farmSHA.getgt());
+    EmitterSHA ESHA(processingTime, numOfPackages, sizeOfPackage);
+    Collector CSHA(farmSHA.getgt(), numOfPackages, sizeOfPackage);
     farmSHA.add_emitter(ESHA); // add the specialized emitter
     farmSHA.add_collector(CSHA);
     if (farmSHA.run_and_wait_end() < 0) error("running SHA farm");
+    log_batch->endTime = clock();
+    exportToCSV("SHA", processingTime, numOfPackages, sizeOfPackage);
 #endif
 
 #ifdef U
-    //FARMA Z EMITEREM JEDNOSTAJNYM
+    cout << "FARMA Z EMITEREM JEDNOSTAJNYM" << endl;
+    init_logs(numOfPackages);
+    //std::vector<std::unique_ptr<ff_node> > WorkersU;
     create_workers(&Workers, nworkers);
-    ff_Farm<long> farmU(std::move(Workers));
+    ff_Farm<Task> farmU(std::move(Workers));
     farmU.set_scheduling_ondemand(); // set auto scheduling
-    EmitterU EU;
-    Collector CU(farmU.getgt());
+    EmitterU EU(processingTime, numOfPackages, sizeOfPackage);
+    Collector CU(farmU.getgt(), numOfPackages, sizeOfPackage);
     farmU.add_emitter(EU); // add the specialized emitter
     farmU.add_collector(CU);
     if (farmU.run_and_wait_end() < 0) error("running UNITED farm");
+    log_batch->endTime = clock();
+    exportToCSV("U", processingTime, numOfPackages, sizeOfPackage);
 #endif
 
     clock_t end = clock();
@@ -774,6 +995,6 @@ int main(int argc, char **argv) {
     cout << "Czas stop: " << elapsed_secs << " [s]" << endl;
     cout << "Press enter to continue ..." << endl;
     cin.get();
-    destroy();
+    destroy(numOfPackages);
     return 0;
 }

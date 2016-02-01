@@ -767,10 +767,16 @@ public:
             } //if
         } while (wylosowanych < numOfPackages);
         sort(sleepTable, sleepTable + numOfPackages);
-
+        for(int i=0; i<numOfPackages; i++)
+        {
+            for(int j=i+1; j<numOfPackages; j++)
+            {
+                sleepTable[j]-=sleepTable[i];
+            }
+        }
         wylosowanych = 0;
         do {
-            std::cout << sleepTable[ wylosowanych ] << std::endl;
+            cout << sleepTable[ wylosowanych ] << "\n";
             wylosowanych++;
         } while (wylosowanych < numOfPackages);
 
@@ -786,15 +792,15 @@ public:
         //pthread_create(&(time_thread), NULL, thread_timer, (void*) sleepTable);
         log_batch->beginTime = clock();
         for (int n = 0; n < numOfPackages; n++) {
-            cout << "Paczka nr " << n << "  czeka na semafor" << endl;
+            cout << "Paczka nr " << n << "  czeka na semafor\n";
             log_packages[n].beginTime = clock(); // Uwaga! doliczamy czas oczekiwania na zadania!!!!!!!
             sem_wait(&semTable[n]);
-            cout << "Paczka nr " << n << " rozsylana" << endl;
+            cout << "Paczka nr " << n << " rozsylana\n";
             //Rozsyłamy zadania
             for (long i = 0; i < sizeOfPackage; ++i) {
                 ff_send_out(new Task(i, n, modelU));
             }
-            cout << "Paczka nr " << n << " - wszystkie zadania zostaly rozeslane" << endl;
+            cout << "Paczka nr " << n << " - wszystkie zadania zostaly rozeslane\n";
             sem_post(&semTable[n]);
         }
         //log_batch->endTime = clock();
@@ -920,7 +926,7 @@ int main(int argc, char **argv) {
     int nworkers = 1;
     unsigned int processingTime = 3600; // Godzina na wykonanie wszystkich paczek
     unsigned int numOfPackages = 12; // Liczba paczek na processingTime
-    unsigned int sizeOfPackage = 15; // liczba zadań w paczce
+    unsigned int sizeOfPackage = 20; // liczba zadań w paczce
 
 
 
@@ -928,7 +934,7 @@ int main(int argc, char **argv) {
     down_sem(numOfPackages);
     std::vector<std::unique_ptr<ff_node> > Workers;
 
-    cout << "Czas start " << endl;
+    cout << "Czas start\n";
     clock_t begin = clock();
 
 

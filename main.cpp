@@ -25,8 +25,8 @@ using namespace std;
 using namespace ff;
 
 #define REF
-#define BBS
-#define SHA
+//#define BBS
+//#define SHA
 #define U
 
 #define ulong unsigned long int
@@ -408,9 +408,9 @@ public:
         pthread_t time_thread;
         int *sleepTable;
         sleepTable = new int[numOfPackages];
-        sleepTable[0] = processingTime/numOfPackages;
+        sleepTable[0] = 0;
         for (int i = 1; i < numOfPackages; i++) {
-            sleepTable[i] = 0;
+            sleepTable[i] = processingTime/numOfPackages;
         }
         
         TimerData td;

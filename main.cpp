@@ -389,11 +389,11 @@ struct Emitter : ff_node_t<Task> {
     // składowe publiczne struktury
     //unsigned int wait_time = 300; // po rozesłaniu paczki (uwaga! nie po wykonaniu wszystkich zadań) czekamy tyle sekund (tut. 5 minut)
 private:
-    unsigned int processingTime, numOfPackages, sizeOfPackage, readyTime;
+    unsigned int processingTime, numOfPackages, sizeOfPackage;
 public:
 
     Emitter(unsigned int _processingTime = 3600, unsigned int _numOfPackages = 12, unsigned int _sizeOfPackage = 10, unsigned int _readyTime = 300)
-    : processingTime(_processingTime), numOfPackages(_numOfPackages), sizeOfPackage(_sizeOfPackage), readyTime(_readyTime) {
+    : processingTime(_processingTime), numOfPackages(_numOfPackages), sizeOfPackage(_sizeOfPackage) {
         srand((unsigned int) time((time_t *) NULL)); // korzystamy z funkcji rand  // ZA KAŻDYM RAZEM WYLOSUJEMY INNY ROZKŁAD  !!!!!!!!!!!!!!
     }
     //MODEL REFERECYJNY Z ROWNYM ROZZYLEM ZADAN -NIELOSOWYM CO 5 MIN
@@ -405,19 +405,33 @@ public:
         cout << "Start Emitter\n";
         //down_sem(numOfPackages);
         //model ma rozesłać paczki 12 razy, więc...
+        pthread_t time_thread;
+        int *sleepTable;
+        sleepTable = new int[numOfPackages];
+        sleepTable[0] = processingTime/numOfPackages;
+        for (int i = 1; i < numOfPackages; i++) {
+            sleepTable[i] = 0;
+        }
+        
+        TimerData td;
+        td.numOfPackages = numOfPackages;
+        td.timeTable = sleepTable;
+        pthread_create(&(time_thread), NULL, thread_timer, (void*) &td);
+        
         log_batch->beginTime = clock();
         for (int n = 0; n < numOfPackages; n++) {
-            cout << "Paczka nr " << n << endl;
+            cout << "Paczka nr " << n << "  czeka na semafor" << endl;
             //Rozsyłamy zadania
             log_packages[n].beginTime = clock();
+            sem_wait(&semTable[n]);
+            cout << "Paczka nr " << n << " rozsylana" << endl;
             for (int i = 0; i < sizeOfPackage; ++i) {
                 ff_send_out(new Task(i, n, modelREF));
             }
             cout << "Paczka nr " << n << " - wszystkie zadania zostaly rozeslane" << endl;
-            cout << "Czekamy - gromadzimy zadania :)" << endl;
-            //czekamy 5 minut (300 sec)
-            sleep(readyTime);
+            sem_post(&semTable[n]);
         }
+        pthread_join(time_thread, NULL);
         //log_batch->endTime = clock();
         return EOS;
     }
@@ -745,7 +759,7 @@ public:
     }
 
     int wylosuj() {
-        return ( rand() % (processingTime / 60) + 1);
+        return ( rand() % ((processingTime / 60) - (processingTime / (60 * numOfPackages))) + 1);
     }
 
     Task *svc(Task *) override {

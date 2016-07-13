@@ -35,6 +35,8 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 
 # Object Files
 OBJECTFILES= \
+	${OBJECTDIR}/GASched.o \
+	${OBJECTDIR}/Machine.o \
 	${OBJECTDIR}/global_fun.o \
 	${OBJECTDIR}/main.o
 
@@ -62,6 +64,16 @@ LDLIBSOPTIONS=-pthread -lssl -lcrypto
 ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/agentsecurescheduler: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
 	${LINK.cc} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/agentsecurescheduler ${OBJECTFILES} ${LDLIBSOPTIONS}
+
+${OBJECTDIR}/GASched.o: GASched.cpp 
+	${MKDIR} -p ${OBJECTDIR}
+	${RM} "$@.d"
+	$(COMPILE.cc) -O2 -I. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/GASched.o GASched.cpp
+
+${OBJECTDIR}/Machine.o: Machine.cpp 
+	${MKDIR} -p ${OBJECTDIR}
+	${RM} "$@.d"
+	$(COMPILE.cc) -O2 -I. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/Machine.o Machine.cpp
 
 ${OBJECTDIR}/global_fun.o: global_fun.cpp 
 	${MKDIR} -p ${OBJECTDIR}

@@ -4,6 +4,9 @@
     <logicalFolder name="HeaderFiles"
                    displayName="Header Files"
                    projectFiles="true">
+      <itemPath>GASched.h</itemPath>
+      <itemPath>Machine.h</itemPath>
+      <itemPath>RREmitter.h</itemPath>
       <itemPath>global_fun.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ResourceFiles"
@@ -13,6 +16,8 @@
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
+      <itemPath>GASched.cpp</itemPath>
+      <itemPath>Machine.cpp</itemPath>
       <itemPath>global_fun.cpp</itemPath>
       <itemPath>main.cpp</itemPath>
     </logicalFolder>
@@ -54,6 +59,16 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
+      <item path="GASched.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="GASched.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="Machine.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="Machine.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="RREmitter.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="global_fun.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="global_fun.h" ex="false" tool="3" flavor2="0">
@@ -92,6 +107,16 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
+      <item path="GASched.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="GASched.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="Machine.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="Machine.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="RREmitter.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="global_fun.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="global_fun.h" ex="false" tool="3" flavor2="0">

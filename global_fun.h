@@ -5,6 +5,8 @@
  * Created on 4 styczeń 2016, 22:04
  */
 
+#pragma once
+
 #ifndef GLOBAL_FUN_H
 #define GLOBAL_FUN_H
 
@@ -21,20 +23,25 @@
 #include <semaphore.h>
 #include <sys/types.h>
 #include <fstream>
+#include <openssl/rand.h>
+#include <openssl/bn.h>
 
 #define ulong unsigned long int
 
 
 ////////////////////////////////////////
 
-sem_t *semTable; // tablica semaforów
+extern sem_t *semTable; // tablica semaforów
 
 enum model {
     modelREF,
     modelBBS,
     modelSHA,
     modelU,
-    modelGAREF
+    modelGAREF,
+    modelGABBS,
+    modelGASHA,
+    modelGAU
 };
 
 // charakterystyka zadania
@@ -89,6 +96,25 @@ struct PackageLog {
     }
 };
 
+struct ScheduleLog {
+    //id pakietu
+    int packageID;
+    //czas generowania haromonogramu
+    clock_t beginTime = 0;
+    clock_t endTime = 0;
+    //harmonogram
+    vector<Machine> schedule;
+
+    ScheduleLog(int _packageID, clock_t _beginTime, clock_t _endTime, vector<Machine> &_schedule)
+    : packageID(_packageID), beginTime(_beginTime), endTime(_endTime) {
+        schedule.reserve(_schedule.size());
+        copy(_schedule.begin(), _schedule.end(), back_inserter(schedule));
+        //cout << "Schedule LOG \n";
+        //for (std::vector<Machine>::const_iterator i = schedule.begin(); i != schedule.end(); ++i)
+        //cout << *i << endl;
+    }
+};
+
 // obiekt dla każdego modelu
 
 struct BatchLog {
@@ -105,117 +131,31 @@ struct BatchLog {
 };
 
 
+
+extern vector<TaskLog> log_tasks;
+extern vector<PackageLog> log_packages;
+extern BatchLog *log_batch;
+extern vector<ScheduleLog> log_schedule;
+
 //vector<TaskLog> log_tlREF, log_tlBBS, log_tlSHA, log_tlU;
 //vector<PackageLog> log_plREF, log_plBBS, log_plSHA, log_plU;
 //BatchLog *log_blREF, *log_blBBS, *log_blSHA, *log_blU;
 
-vector<TaskLog> log_tasks;
-vector<PackageLog> log_packages;
-BatchLog *log_batch = NULL;
 
-void init_logs(int numOfPackages) {
-    if (log_batch)
-        delete log_batch;
-    log_batch = new BatchLog;
-    log_tasks.clear();
-    log_packages.clear();
-    for (int i = 0; i < numOfPackages; i++) {
-        log_packages.push_back(PackageLog(i, 0, 0));
-    }
-}
 
-void exportToCSV(char *model, unsigned int processingTime, unsigned int numOfPackages, unsigned int sizeOfPackage) {
+void init_logs(int numOfPackages);
 
-    time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
-    char name[50];
-    sprintf(name, "logs/Log_%s_%d-%d-%d_%d.%d.%d.csv", model, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-    ofstream fsout;
-    fsout.open(name, ios::out);
-    if (!fsout.is_open()) {
-        cerr << "Blad zapisu do pliku!" << endl;
-        return;
-    }
-    fsout << model << "\n\n";
-    fsout << "Parametry\n";
-    fsout << "processingTime:;" << processingTime << "\n";
-    fsout << "numOfPackages:;" << numOfPackages << "\n";
-    fsout << "sizeOfPackage:;" << sizeOfPackage << "\n\n";
+void exportToCSV(char *model, unsigned int processingTime, unsigned int numOfPackages, unsigned int sizeOfPackage);
 
-    fsout << "Czas wykonywania poszczegolnych zadan [s]\n";
-    fsout << "workerType;workerID;packageID;taskNumber;taskTime\n";
-    for (vector<TaskLog>::iterator it = log_tasks.begin(); it != log_tasks.end(); ++it) {
-        fsout << it->workerType << ";" << it->workerID << ";" << it->packageID << ";" << it->taskNumber << ";" << double(it->endTime - it->beginTime) / CLOCKS_PER_SEC << "\n";
-    }
-    fsout << "\n";
-    fsout << "Czas wykonywania poszczegolnych pakietow [s]\n";
-    fsout << "packageID;packageTime\n";
-    for (vector<PackageLog>::iterator it = log_packages.begin(); it != log_packages.end(); ++it) {
-        fsout << it->packageID << ";" << double(it->endTime - it->beginTime) / CLOCKS_PER_SEC << "\n";
-    }
+void czekaj(int iSekundy);
 
-    fsout << "\n";
-    fsout << "Czas wykonywania calego wsadu [s]\n";
-    fsout << double(log_batch->endTime - log_batch->beginTime) / CLOCKS_PER_SEC << "\n\n";
-    fsout << "KONIEC\n";
-    fsout.flush();
-    fsout.close();
-}
+void init_sem(unsigned int numOfPackages);
 
-//Przygotowanie zadania, które wiemy dokładnieile będzie trwało
+void down_sem(unsigned int numOfPackages);
 
-void czekaj(int iSekundy) {
-    for (clock_t koniec = clock() + iSekundy * CLOCKS_PER_SEC; clock() < koniec;)
-        continue;
+void destroy(unsigned int numOfPackages);
 
-}
-
-// Inicjalizujemy semafory (funkcja wywoływana raz w main)
-
-void init_sem(unsigned int numOfPackages) {
-    semTable = new sem_t[numOfPackages];
-    for (int i = 0; i < numOfPackages; i++) {
-        sem_init(&semTable[i], 0, 1);
-        //taskTable[i] = sizeOfPackage;
-    }
-    //threads = new pthread_t[numOfPackages];
-}
-
-// Opuszczamy semafory (funkcja wywoływana w każdym emmiterze na początku)
-
-void down_sem(unsigned int numOfPackages) {
-    for (int i = 0; i < numOfPackages; i++) {
-        sem_wait(&semTable[i]);
-        //taskTable[i] = sizeOfPackage;
-    }
-}
-
-// Niszczymy semafory (funkcja wywoływana raz w main - na końcu)
-
-void destroy(unsigned int numOfPackages) {
-    for (int i = 0; i < numOfPackages; i++)
-        sem_destroy(&semTable[i]);
-    delete[] semTable;
-}
-
-// Funkcja która zarządza dostępem do paczek zadań 
-// czyli zadania przychodzą w określonych odstępach czasu
-// Wyświetla informacje o paczce i ile musi czekac na przyjscie
-// Po tym czasie podnosi semafor, czyli daje dostep do tych danych
-// Po podniesieniu wszystkich semaforów wątek ginie
-
-void* thread_timer(void *ptr) {
-    TimerData *td = (TimerData *) ptr;
-    for (int i = 0; i < td->numOfPackages; i++) {
-        cout << "Paczka " << i << "  Watek czeka " << td->timeTable[i] << endl;
-        sleep(td->timeTable[i]);
-        sem_post(&semTable[i]);
-        cout << "podniesiono semafor " << i << endl;
-    }
-    pthread_exit(0);
-
-}
-
+void* thread_timer(void *ptr);
 
 ///////////////////////////////////
 
@@ -228,5 +168,7 @@ ulong* generateBBSKey(ulong N);
 
 void gen_random(char *s, const int len);
 
-#endif	/* GLOBAL_FUN_H */
+const char* hex_char_to_bin(char c);
+
+#endif /* GLOBAL_FUN_H */
 

@@ -14,24 +14,7 @@
 #ifndef MACHINE_H
 #define MACHINE_H
 
-#include <cstdlib>
-#include <iostream>
-#include <vector>
 
-using namespace std;
-
-class Machine {
-public:
-    int idMachine; //numer maszyny
-
-    std::vector<int> scheduler;
-
-    double fitness;
-
-    void countFitness(vector< vector <double> > &matrixETC);
-    bool isUsed; //flaga potrzebna żeby zapamiętać maszyny które już krzyżowaliśmy
-    friend ostream& operator<<(ostream& os, const Machine& m);
-};
 
 #endif /* MACHINE_H */
 

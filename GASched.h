@@ -18,6 +18,12 @@
 
 using namespace std;
 
+struct SecureStudyLog {
+    //int epochId;
+    double makespan;
+    double avgTime;
+};
+
 class Machine {
 public:
     int idMachine; //numer maszyny
@@ -33,8 +39,11 @@ public:
 //extern vector<double> log_makespans;
 vector<Machine> PrepareSchedule();
 double GetTaskTime(int idMachine, int idTask);
-void initETCMatrix();
-double PrepareSecureSchedule(int _maxIter, double _securityFactor);
+void initETCMatrix(double securityFactor = 1.0);
+void PrepareSecureSchedule(int _maxIter, int _numOfCrossingPairs, int _iteration);
+void exportSecureStudyToCSV(int maxIter, int numOfCrossingPairs, double securityFactor, int repeats);
+
+extern SecureStudyLog **log_securestudy;
 
 #endif /* GASCHED_H */
 

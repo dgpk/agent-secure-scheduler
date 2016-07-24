@@ -40,6 +40,7 @@ vector<TaskLog> log_tasks;
 vector<PackageLog> log_packages;
 BatchLog *log_batch = NULL;
 vector<ScheduleLog> log_schedule;
+SecureStudyLog **log_securestudy = NULL;
 
 // Maszyna "niescharakteryzowana"
 // jej charakterystyka jest skladowa macierzy ETC
@@ -792,22 +793,55 @@ int main(int argc, char **argv) {
         }
         case 3:
         {
-            initETCMatrix();
+
+
             double securityFactor;
-            int repeats, epochs;
-            cout << "Enter security factor (eg. 0.25): ";
+            int repeats, epochs, numOfCrossingPairs;
+            cout << "Problem formulation: 20 machines and 200 tasks\n\n";
+            /*cout << "Enter security factor (eg. 0.25): ";
             cin >> securityFactor;
             cout << "Enter the number of epoches (eg. 10000): ";
             cin >> epochs;
             cout << "How many times repeat the genetic process? (eg. 1000)\n";
             cin >> repeats;
-            vector<double> makespans;
-            for(int i=0; i<repeats; i++)
-                makespans.push_back(PrepareSecureSchedule(epochs, securityFactor));
-            
-            for (vector<double>::iterator it = makespans.begin(); it != makespans.end(); ++it) {
-                cout << *it << "\n";
+            cout << "How many pairs allow for crossing? (eg. min 1, max 10)\n";
+            cin >> numOfCrossingPairs;
+             */
+            // liczba epok = 1 tys; powt = 100, factor od 0 do 0.5; pary od 1 do 10
+            epochs = 1000;
+            repeats = 100;
+
+
+            log_securestudy = new SecureStudyLog*[repeats];
+            for (int i = 0; i < repeats; i++)
+                log_securestudy[i] = new SecureStudyLog[epochs];
+            //vector<double> makespans;
+            int test =0;
+
+            for (int i = 0; i < 6; i++) {
+                securityFactor = i * 0.1;
+                initETCMatrix(1 + securityFactor);
+                for (numOfCrossingPairs = 1; numOfCrossingPairs < 11; numOfCrossingPairs++) {
+                    cout << test << endl;
+                    test++;
+                    for (int i = 0; i < repeats; i++)
+                        PrepareSecureSchedule(epochs, numOfCrossingPairs, i);
+                    exportSecureStudyToCSV(epochs, numOfCrossingPairs, securityFactor, repeats);
+                }
             }
+
+
+
+
+            if (log_securestudy) {
+                for (int i = 0; i < repeats; i++)
+                    delete[] log_securestudy[i];
+                delete[] log_securestudy;
+            }
+
+
+
+
         }
         case 4:
         {

@@ -137,6 +137,7 @@ extern vector<PackageLog> log_packages;
 extern BatchLog *log_batch;
 extern vector<ScheduleLog> log_schedule;
 
+
 //vector<TaskLog> log_tlREF, log_tlBBS, log_tlSHA, log_tlU;
 //vector<PackageLog> log_plREF, log_plBBS, log_plSHA, log_plU;
 //BatchLog *log_blREF, *log_blBBS, *log_blSHA, *log_blU;

@@ -16,6 +16,7 @@
 #include <semaphore.h>
 #include <sys/types.h>
 #include <fstream>
+#include <cfloat>
 #include <openssl/ssl.h> 
 #include <ff/farm.hpp>
 #include <ff/pipeline.hpp>
@@ -575,9 +576,9 @@ int main(int argc, char **argv) {
     int choice = 0;
     while (choice == 0) {
         cout << "Wybierz doswiadczenie:" << endl;
-        cout << "1 - round robin\n2 - GA\n3 - only schedule with security factor" << endl;
+        cout << "1 - round robin\n2 - GA\n3 - only schedule with security factor\n4 - only schedule with security levels" << endl;
         cin >> choice;
-        if (choice < 1 || choice > 3)
+        if (choice < 1 || choice > 4)
             choice = 0;
     }
 
@@ -816,16 +817,16 @@ int main(int argc, char **argv) {
             for (int i = 0; i < repeats; i++)
                 log_securestudy[i] = new SecureStudyLog[epochs];
             //vector<double> makespans;
-            int test =0;
+            //int test =0;
 
             for (int i = 0; i < 6; i++) {
                 securityFactor = i * 0.1;
                 initETCMatrix(1 + securityFactor);
                 for (numOfCrossingPairs = 1; numOfCrossingPairs < 11; numOfCrossingPairs++) {
-                    cout << test << endl;
-                    test++;
-                    for (int i = 0; i < repeats; i++)
-                        PrepareSecureSchedule(epochs, numOfCrossingPairs, i);
+                    //cout << test << endl;
+                    //test++;
+                    //for (int i = 0; i < repeats; i++)
+                    PrepareSecureSchedule(epochs, numOfCrossingPairs, i);
                     exportSecureStudyToCSV(epochs, numOfCrossingPairs, securityFactor, repeats);
                 }
             }
@@ -845,7 +846,27 @@ int main(int argc, char **argv) {
         }
         case 4:
         {
+
             //TODO - security levels
+            int epochs = 1000, repeats = 100, securityLevels = 4, numOfCrossingPairs = 1; // numOfCrossingPairs 1 lub 2 !!!!
+            double makespan = 0.0, tmp_makespan;
+            vector<double> SL_makespans, UNI_makespans;
+            initETCMatrix();
+
+            for (int i = 0; i < repeats; i++) {
+                for (int j = 0; j < securityLevels; j++) {
+                    tmp_makespan = SL_PrepareSchedule(epochs, numOfCrossingPairs, j); // num of crossing pairs MAX 2 !!!!
+                    if (makespan < tmp_makespan) {
+                        makespan = tmp_makespan;
+                    }
+                }
+                UNI_makespans.push_back(UNI_PrepareSchedule(epochs, numOfCrossingPairs));
+                //cout << makespan << endl;
+                SL_makespans.push_back(makespan);
+                makespan = 0.0;
+            }
+            SL_exportToCSV(&SL_makespans, &UNI_makespans, epochs, numOfCrossingPairs, securityLevels, repeats);
+
         }
     }
 

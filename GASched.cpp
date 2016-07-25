@@ -50,6 +50,7 @@ using namespace std;
 const int machineNumber = 20;
 const int taskNumber = 200;
 const int taskPerMachine = (taskNumber / machineNumber);
+const int securityLevels = 4;
 
 
 double averageValue = 50.0;
@@ -85,6 +86,18 @@ void Machine::countFitness(vector<vector<double> > &matrixETC) {
 double CountFitness(vector<Machine> &machineVect, vector<vector<double> > &matrixETC) {
     double max = 0.0;
     for (int i = 0; i < machineNumber; i++) {
+        machineVect[i].countFitness(matrixETC);
+
+        if (max < machineVect[i].fitness)
+            max = machineVect[i].fitness;
+    }
+
+    return max;
+}
+
+double SL_CountFitness(vector<Machine> &machineVect, vector<vector<double> > &matrixETC) {
+    double max = 0.0;
+    for (int i = 0; i < machineNumber / securityLevels; i++) {
         machineVect[i].countFitness(matrixETC);
 
         if (max < machineVect[i].fitness)
@@ -200,6 +213,32 @@ void Init(vector<Machine> &machineVect) {
     }
 }
 
+void SL_Init(vector<Machine> &machineVect, int securityLevel) {
+    srand(time(NULL));
+    unsigned seed = chrono::system_clock::now().time_since_epoch().count();
+
+    vector<int> Init;
+
+    for (int i = securityLevel; i < taskNumber; i += securityLevels) {
+        Init.push_back(i);
+    }
+
+    shuffle(Init.begin(), Init.end(), default_random_engine(seed));
+
+    //std::random_shuffle ( Init.begin(), Init.end() );  //
+
+    int actTaskNumber = 0;
+
+    for (int i = 0; i < machineNumber / securityLevels; i++) {
+        machineVect[i].idMachine = i;
+
+        for (int j = 0; j < taskPerMachine; j++) {
+            machineVect[i].scheduler.push_back(Init[actTaskNumber]);
+            actTaskNumber++;
+        }
+    }
+}
+
 void Crossing(int j, int k, int point, vector<Machine> &machineVect) {
     int tmp;
 
@@ -237,7 +276,7 @@ vector<Machine> PrepareSchedule() {
     int point;
     double prev_value = 0; // uzywany do zapamietywania wartosci poprzedniej
 
-    //LoadMatrixETC(matrixETC);
+    //LoadMatrixETC(matrixETC); // juz jest wyrzucone na zewnatrz
     //LoadVectETC(vectETC);
 
 
@@ -430,32 +469,19 @@ vector<Machine> PrepareSchedule() {
 }
  */
 void PrepareSecureSchedule(int maxIter, int numOfCrossingPairs, int iteration) {
-    //maxIter = _maxIter;
-    //numOfCrossingPairs = _numOfCrossingPairs;
     vector<Machine> machineVect(machineNumber);
-    //vector<Machine> tmpVect(machineNumber);
-
-    //vector <vector <double>> matrixETC(machineNumber, vector<double>(taskNumber));
-    //vector <double> vectETC(taskNumber);
     vector<Machine> bestIndivuals(machineNumber);
 
 
     int j = 0;
     int k = 0;
     int point;
-    //double prev_value = 0; // uzywany do zapamietywania wartosci poprzedniej
-
-    //LoadMatrixETC(matrixETC);
-    //LoadVectETC(vectETC);
 
     double avgTime = 0.0;
     double actTime = 0.0;
     int bestIter = 0;
     double bestTime = DBL_MAX;
-    //for(int island = 0; island < 10; island ++)
-    //{
     Init(machineVect);
-    //cout << "Island: " << island << endl;
     for (int i = 0; i < maxIter; i++) //pętla główna programu, w niej się wykonują krzyżowania, sortowania itd
     {
         actTime = CountFitness(machineVect, matrixETC);
@@ -472,7 +498,6 @@ void PrepareSecureSchedule(int maxIter, int numOfCrossingPairs, int iteration) {
         for (int i = 0; i < machineNumber; i++) //wyzerowanie flagi uzycia
             machineVect[i].isUsed = 0;
 
-        //int num = 4; // najoptymalniej 1-2
 
         for (int i = machineNumber - numOfCrossingPairs; i < machineNumber; i++) // krzyzuje najszybsze z najwolniejszymi
         {
@@ -489,35 +514,9 @@ void PrepareSecureSchedule(int maxIter, int numOfCrossingPairs, int iteration) {
             machineVect[k].isUsed = 1;
 
         }
-        //for (int i = 0; i < num; i++)		//krzyzuje maszyny ze srodka
-        //{
-        //	do
-        //	{
-        //		j = rand() % (machineNumber - num) + num;
-        //	} while (machineVect[j].isUsed);
-        //	do
-        //	{
-        //		k = rand() % (machineNumber / 2 - num) + machineNumber / 2;
-        //	} while (machineVect[k].isUsed || j == k);
-
-        //	point = rand() % taskPerMachine;
-        //	Crossing(j, k, point, machineVect);
-        //	machineVect[j].isUsed = 1;
-        //	machineVect[k].isUsed = 1;
-        //}
 
         sort(bestIndivuals.begin(), bestIndivuals.end(), Match);
 
-        //        if (prev_value != bestIndivuals[9].fitness) // wyswietli sie tylko wtedy gdy nastapia jakies zmiany
-        //        {
-        //            cout << "Najsz:  " << bestIndivuals[0].fitness
-        //                    << " avg:  " << bestIndivuals[9].fitness // srodkowy
-        //                    << " Najw:  " << bestIndivuals[19].fitness // roznica
-        //                    << " DIFF:   " << abs(bestIndivuals[0].fitness - bestIndivuals[19].fitness)
-        //                    << " Iter:   " << i
-        //                    << endl;
-        //        }
-        //prev_value = bestIndivuals[19].fitness;
         for (std::vector<Machine>::const_iterator i = bestIndivuals.begin(); i != bestIndivuals.end(); ++i)
             avgTime += i->fitness;
 
@@ -562,6 +561,144 @@ void exportSecureStudyToCSV(int maxIter, int numOfCrossingPairs, double security
         minMakespan = DBL_MAX;
         avgMakespan = 0.0;
     }
+    fsout << "KONIEC\n";
+    fsout.flush();
+    fsout.close();
+}
+
+double SL_PrepareSchedule(int maxIter, int numOfCrossingPairs, int securityLevel) {
+
+    vector<Machine> machineVect(machineNumber / securityLevels);
+    vector<Machine> bestIndivuals(machineNumber / securityLevels);
+
+    int j = 0;
+    int k = 0;
+    int point;
+
+    double actTime = 0.0;
+    int bestIter = 0;
+    double bestTime = DBL_MAX;
+
+    SL_Init(machineVect, securityLevel);
+
+    for (int i = 0; i < maxIter; i++) //pętla główna programu, w niej się wykonują krzyżowania, sortowania itd
+    {
+        actTime = SL_CountFitness(machineVect, matrixETC);
+        if (actTime < bestTime) {
+            for (int j = 0; j < machineNumber / securityLevels; j++)
+                bestIndivuals[j] = machineVect[j];
+
+            bestIter = i;
+            bestTime = actTime;
+        }
+        //SELECKCJA KRZYŻOWANIE ELITARYZM
+        sort(machineVect.begin(), machineVect.end(), Match);
+
+        for (int i = 0; i < machineNumber / securityLevels; i++) //wyzerowanie flagi uzycia
+            machineVect[i].isUsed = 0;
+
+        for (int i = machineNumber / securityLevels - numOfCrossingPairs; i < machineNumber / securityLevels; i++) // krzyzuje najszybsze z najwolniejszymi
+        {
+            do {
+                j = rand() % numOfCrossingPairs;
+            } while (machineVect[j].isUsed);
+            do {
+                k = rand() % numOfCrossingPairs + (machineNumber / securityLevels - numOfCrossingPairs);
+            } while (machineVect[k].isUsed);
+
+            point = rand() % taskPerMachine;
+            Crossing(j, k, point, machineVect);
+            machineVect[j].isUsed = 1; // ustawienie flagi aby nie brano już tych maszyn
+            machineVect[k].isUsed = 1;
+
+        }
+        sort(bestIndivuals.begin(), bestIndivuals.end(), Match);
+    }
+    return bestIndivuals[(machineNumber / securityLevels) - 1].fitness;
+}
+
+double UNI_PrepareSchedule(int maxIter, int numOfCrossingPairs) {
+
+    vector<Machine> machineVect(machineNumber);
+    vector<Machine> bestIndivuals(machineNumber);
+
+    int j = 0;
+    int k = 0;
+    int point;
+
+    double actTime = 0.0;
+    int bestIter = 0;
+    double bestTime = DBL_MAX;
+
+    Init(machineVect);
+    for (int i = 0; i < maxIter; i++) //pętla główna programu, w niej się wykonują krzyżowania, sortowania itd
+    {
+        actTime = CountFitness(machineVect, matrixETC);
+        if (actTime < bestTime) {
+            for (int j = 0; j < machineNumber; j++)
+                bestIndivuals[j] = machineVect[j];
+
+            bestIter = i;
+            bestTime = actTime;
+        }
+        //SELECKCJA KRZYŻOWANIE ELITARYZM
+        sort(machineVect.begin(), machineVect.end(), Match);
+
+        for (int i = 0; i < machineNumber; i++) //wyzerowanie flagi uzycia
+            machineVect[i].isUsed = 0;
+
+
+        for (int i = machineNumber - numOfCrossingPairs; i < machineNumber; i++) // krzyzuje najszybsze z najwolniejszymi
+        {
+            do {
+                j = rand() % numOfCrossingPairs;
+            } while (machineVect[j].isUsed);
+            do {
+                k = rand() % numOfCrossingPairs + (machineNumber - numOfCrossingPairs);
+            } while (machineVect[k].isUsed);
+
+            point = rand() % taskPerMachine;
+            Crossing(j, k, point, machineVect);
+            machineVect[j].isUsed = 1; // ustawienie flagi aby nie brano już tych maszyn
+            machineVect[k].isUsed = 1;
+
+        }
+        sort(bestIndivuals.begin(), bestIndivuals.end(), Match);
+
+
+    }
+
+    return bestIndivuals[machineNumber - 1].fitness;
+}
+
+void SL_exportToCSV(vector<double> *SL_makespans, vector<double> *UNI_makespans, int epochs, int numOfCrossingPairs, int securityLevels, int repeats) {
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    char name[50];
+    sprintf(name, "logs/Log_SecureLevelsStudy_%d-%d-%d_%d.%d.%d.csv", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    ofstream fsout;
+    fsout.open(name, ios::out);
+    if (!fsout.is_open()) {
+        cerr << "Blad zapisu do pliku!" << endl;
+        return;
+    }
+    fsout << "Secure levels w procesie genetycznym schedulera\n\n";
+    fsout << "Parametry\n";
+    fsout << "Powtorzen:;" << repeats << "\n";
+    fsout << "Epok:;" << epochs << "\n";
+    fsout << "Liczba par krzyzowanych:;" << numOfCrossingPairs << "\n";
+    fsout << "Liczba security levels:;" << securityLevels << "\n\n";
+
+    double SL_sumMakespan = 0.0, UNI_sumMakespan = 0.0;
+
+    fsout << "Powtorzenie;makespan security level; makespan universal\n";
+
+    for (int i; i < repeats; ++i) {
+        fsout << i << ";" << (*SL_makespans)[i] << ";" << (*UNI_makespans)[i] << '\n';
+        SL_sumMakespan += (*SL_makespans)[i];
+        UNI_sumMakespan += (*UNI_makespans)[i];
+    }
+    fsout << "Sredni makespan;" << SL_sumMakespan / repeats << ";" << UNI_sumMakespan / repeats << "\n";
     fsout << "KONIEC\n";
     fsout.flush();
     fsout.close();

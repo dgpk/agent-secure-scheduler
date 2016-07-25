@@ -42,6 +42,9 @@ double GetTaskTime(int idMachine, int idTask);
 void initETCMatrix(double securityFactor = 1.0);
 void PrepareSecureSchedule(int _maxIter, int _numOfCrossingPairs, int _iteration);
 void exportSecureStudyToCSV(int maxIter, int numOfCrossingPairs, double securityFactor, int repeats);
+double SL_PrepareSchedule(int maxIter, int numOfCrossingPairs, int securityLevel);
+double UNI_PrepareSchedule(int maxIter, int numOfCrossingPairs);
+void SL_exportToCSV(vector<double> *SL_makespans, vector<double> *UNI_makespans, int epochs, int numOfCrossingPairs, int securityLevels, int repeats);
 
 extern SecureStudyLog **log_securestudy;
 

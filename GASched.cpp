@@ -498,6 +498,15 @@ void PrepareSecureSchedule(int maxIter, int numOfCrossingPairs, int iteration) {
         for (int i = 0; i < machineNumber; i++) //wyzerowanie flagi uzycia
             machineVect[i].isUsed = 0;
 
+        //LOG
+        for (std::vector<Machine>::const_iterator i = machineVect.begin(); i != machineVect.end(); ++i)
+            avgTime += i->fitness;
+
+        log_securestudy[iteration][i].avgTime = (avgTime / machineVect.size());
+        log_securestudy[iteration][i].makespan = machineVect[machineVect.size() - 1].fitness;
+        avgTime = 0.0;
+        //koniec LOG
+
 
         for (int i = machineNumber - numOfCrossingPairs; i < machineNumber; i++) // krzyzuje najszybsze z najwolniejszymi
         {
@@ -515,14 +524,9 @@ void PrepareSecureSchedule(int maxIter, int numOfCrossingPairs, int iteration) {
 
         }
 
-        sort(bestIndivuals.begin(), bestIndivuals.end(), Match);
+        sort(bestIndivuals.begin(), bestIndivuals.end(), Match); // powinno isc do petli kopiujacej 
+        log_securestudy[iteration][i].bestMakespan = bestIndivuals[bestIndivuals.size() - 1].fitness; // a to do logow
 
-        for (std::vector<Machine>::const_iterator i = bestIndivuals.begin(); i != bestIndivuals.end(); ++i)
-            avgTime += i->fitness;
-
-        log_securestudy[iteration][i].avgTime = (avgTime / bestIndivuals.size());
-        log_securestudy[iteration][i].makespan = bestIndivuals[bestIndivuals.size() - 1].fitness;
-        avgTime = 0.0;
     }
 }
 
@@ -549,15 +553,17 @@ void exportSecureStudyToCSV(int maxIter, int numOfCrossingPairs, double security
     fsout << "Security Factor:;" << securityFactor << "\n\n";
     for (int i = 0; i < repeats; i++) {
         fsout << "Powtorzenie (iteracja) " << i << "\n";
-        fsout << "Epoka;czas sredni;makespan\n";
+        fsout << "Epoka;czas sredni kazdego z harmonogramow;makespan;best makespan\n";
+        //fsout << "Epoka;czas sredni kazdego z harmonogramow;makespan\n";
         for (int j = 0; j < maxIter; j++) {
-            fsout << j << ';' << log_securestudy[i][j].avgTime << ';' << log_securestudy[i][j].makespan << "\n";
+            fsout << j << ';' << log_securestudy[i][j].avgTime << ';' << log_securestudy[i][j].makespan << ';' << log_securestudy[i][j].bestMakespan << "\n";
+            //fsout << j << ';' << log_securestudy[i][j].avgTime << ';' << log_securestudy[i][j].makespan << "\n";
             avgMakespan += log_securestudy[i][j].makespan;
             if (minMakespan > log_securestudy[i][j].makespan) {
                 minMakespan = log_securestudy[i][j].makespan;
             }
         }
-        fsout << "Min makespan: " << minMakespan << "; avg makespan: " << (avgMakespan / maxIter) << "\n\n";
+        fsout << "Min (best) makespan: " << minMakespan << "; avg makespan: " << (avgMakespan / maxIter) << "\n\n";
         minMakespan = DBL_MAX;
         avgMakespan = 0.0;
     }
@@ -691,14 +697,14 @@ void SL_exportToCSV(vector<double> *SL_makespans, vector<double> *UNI_makespans,
 
     double SL_sumMakespan = 0.0, UNI_sumMakespan = 0.0;
 
-    fsout << "Powtorzenie;makespan security level; makespan universal\n";
+    fsout << "Powtorzenie;best makespan security level; best makespan universal\n";
 
     for (int i; i < repeats; ++i) {
         fsout << i << ";" << (*SL_makespans)[i] << ";" << (*UNI_makespans)[i] << '\n';
         SL_sumMakespan += (*SL_makespans)[i];
         UNI_sumMakespan += (*UNI_makespans)[i];
     }
-    fsout << "Sredni makespan;" << SL_sumMakespan / repeats << ";" << UNI_sumMakespan / repeats << "\n";
+    fsout << "Sredni best makespan;" << SL_sumMakespan / repeats << ";" << UNI_sumMakespan / repeats << "\n";
     fsout << "KONIEC\n";
     fsout.flush();
     fsout.close();

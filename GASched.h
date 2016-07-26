@@ -21,6 +21,7 @@ using namespace std;
 struct SecureStudyLog {
     //int epochId;
     double makespan;
+    double bestMakespan;
     double avgTime;
 };
 

@@ -819,14 +819,14 @@ int main(int argc, char **argv) {
             //vector<double> makespans;
             //int test =0;
 
-            for (int i = 0; i < 6; i++) {
-                securityFactor = i * 0.1;
+            for (int sf = 0; sf < 6; sf++) {
+                securityFactor = sf * 0.1;
                 initETCMatrix(1 + securityFactor);
                 for (numOfCrossingPairs = 1; numOfCrossingPairs < 11; numOfCrossingPairs++) {
                     //cout << test << endl;
                     //test++;
-                    //for (int i = 0; i < repeats; i++)
-                    PrepareSecureSchedule(epochs, numOfCrossingPairs, i);
+                    for (int i = 0; i < repeats; i++)
+                        PrepareSecureSchedule(epochs, numOfCrossingPairs, i);
                     exportSecureStudyToCSV(epochs, numOfCrossingPairs, securityFactor, repeats);
                 }
             }
@@ -839,6 +839,7 @@ int main(int argc, char **argv) {
                     delete[] log_securestudy[i];
                 delete[] log_securestudy;
             }
+            break;
 
 
 
@@ -866,7 +867,7 @@ int main(int argc, char **argv) {
                 makespan = 0.0;
             }
             SL_exportToCSV(&SL_makespans, &UNI_makespans, epochs, numOfCrossingPairs, securityLevels, repeats);
-
+            break;
         }
     }
 

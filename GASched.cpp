@@ -61,8 +61,7 @@ double sigma = 19.0;
 vector <vector <double>> matrixETC(machineNumber, vector<double>(taskNumber));
 
 // prototypy funkcji
-void MainFunc();
-void ETCGenerator(vector <double> &vectETC, int taskNumber, int machineNumber);
+//void ETCGenerator(vector <double> &vectETC, int taskNumber, int machineNumber);
 
 ///// Machine start
 
@@ -111,15 +110,13 @@ double GetTaskTime(int idMachine, int idTask) {
     return matrixETC[idMachine][idTask];
 }
 
-
-//int main(int argc, char** argv) {
-//    MainFunc();
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
-//    getchar();
-//    //system("Pause");
-//    return 0;
-//}
+// ETC GENERATOR NAPISANY W OSOBNYM PROJEKCIE
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+// Do napisania od nowa - wygenerować dwa wektory (maszyny i taski) i obliczyć ETC
 //void ETCGenerator(vector <double> &vectETC, int taskNumber, int machineNumber) {
 //    default_random_engine generator;
 //    normal_distribution<double> distribution(averageValue, sigma);
@@ -163,7 +160,11 @@ bool Match(const Machine &m1, const Machine & m2) {
 void LoadMatrixETC(vector<vector<double> > &matrixETC, double securityFactor = 1.0) {
     fstream file;
     file.open("ETC.txt", ios::in);
-
+    if (file.fail()) {
+        cerr << "Blad wczytywania macierzy ETC. Program zostanie zamkniety\n";
+        system("PAUSE");
+        exit(-1);
+    }
     for (int i = 0; i < machineNumber; i++) {
         for (int j = 0; j < taskNumber; j++) {
             file >> matrixETC[i][j];
@@ -197,16 +198,16 @@ void Init(vector<Machine> &machineVect) {
     for (int i = 0; i < taskNumber; i++)
         Init.push_back(i);
 
-    shuffle(Init.begin(), Init.end(), default_random_engine(seed));
+    //shuffle(Init.begin(), Init.end(), default_random_engine(seed));
 
-    //std::random_shuffle ( Init.begin(), Init.end() );  // Linux
+    std::random_shuffle(Init.begin(), Init.end()); // Linux
 
     int actTaskNumber = 0;
 
     for (int i = 0; i < machineNumber; i++) {
         machineVect[i].idMachine = i;
 
-        for (int j = 0; j < taskPerMachine; j++) {
+        for (int j = 0; j < (taskNumber / machineNumber); j++) {
             machineVect[i].scheduler.push_back(Init[actTaskNumber]);
             actTaskNumber++;
         }
@@ -223,30 +224,56 @@ void SL_Init(vector<Machine> &machineVect, int securityLevel) {
         Init.push_back(i);
     }
 
-    shuffle(Init.begin(), Init.end(), default_random_engine(seed));
+    //shuffle(Init.begin(), Init.end(), default_random_engine(seed));
 
-    //std::random_shuffle ( Init.begin(), Init.end() );  //
+    std::random_shuffle(Init.begin(), Init.end()); //
 
     int actTaskNumber = 0;
 
     for (int i = 0; i < machineNumber / securityLevels; i++) {
         machineVect[i].idMachine = i;
 
-        for (int j = 0; j < taskPerMachine; j++) {
+        for (int j = 0; j < (taskNumber / machineNumber); j++) {
             machineVect[i].scheduler.push_back(Init[actTaskNumber]);
             actTaskNumber++;
         }
     }
 }
 
-void Crossing(int j, int k, int point, vector<Machine> &machineVect) {
-    int tmp;
+void Crossing(int j, int k, vector<Machine> &machineVect) {
+    vector<int> tmp1;
+    vector<int> tmp2;
+    int point1 = (rand() % machineVect[j].scheduler.size()) + 1; // najmniej 1 najwięcej size (czyli ZA ostatnim elementem)
+    int point2 = (rand() % machineVect[k].scheduler.size()) + 1;
 
-    for (int i = point; i < taskPerMachine; i++) {
-        tmp = machineVect[j].scheduler[i];
-        machineVect[j].scheduler[i] = machineVect[k].scheduler[i];
-        machineVect[k].scheduler[i] = tmp;
+    tmp1.swap(machineVect[j].scheduler);
+    tmp2.swap(machineVect[k].scheduler);
+
+    for (int i = 0; i < point1; i++) {
+        machineVect[j].scheduler.push_back(tmp1[i]);
     }
+    for (int i = point2; i < tmp2.size(); i++) {
+        machineVect[j].scheduler.push_back(tmp2[i]);
+    }
+    for (int i = 0; i < point2; i++) {
+        machineVect[k].scheduler.push_back(tmp2[i]);
+    }
+    for (int i = point1; i < tmp1.size(); i++) {
+        machineVect[k].scheduler.push_back(tmp1[i]);
+    }
+
+    /*int tmp;
+    int point = rand() % taskPerMachine;
+    for (int i = point; i < taskPerMachine; i++) {
+            tmp = machineVect[j].scheduler[i];
+            machineVect[j].scheduler[i] = machineVect[k].scheduler[i];
+            machineVect[k].scheduler[i] = tmp;
+    }*/
+}
+
+void Mutation(int j, int k, vector<Machine> &machineVect) {
+    //TODO
+    // zamiana pierwszych genow lub jakichkolwiek pomiedzy rozwiazaniami
 }
 
 void PrintSolution(vector<Machine> &machineVect) {
@@ -260,8 +287,7 @@ void initETCMatrix(double securityFactor) {
 
 vector<Machine> PrepareSchedule() {
     int maxIter = 10000; //zmiana ze 100
-    int maxIslands = 1;
-    int numOfCrossingPairs = 3;
+    int numOfCrossingPairs = machineNumber / 2; // ile par ma być krzyzowanych
     vector<Machine> machineVect(machineNumber);
     //vector<Machine> tmpVect(machineNumber);
 
@@ -269,11 +295,8 @@ vector<Machine> PrepareSchedule() {
     //vector <double> vectETC(taskNumber);
     vector<Machine> bestIndivuals(machineNumber);
 
-    //ETCGenerator(taskNumber, machineNumber);										To jest wazne - gdy to odkomentujemy to stworzy sie nowa macierz ETC sluzaca dotestow,lepiej nie odkomentowywac bo juz zostala stworzona
-
     int j = 0;
     int k = 0;
-    int point;
     double prev_value = 0; // uzywany do zapamietywania wartosci poprzedniej
 
     //LoadMatrixETC(matrixETC); // juz jest wyrzucone na zewnatrz
@@ -283,12 +306,17 @@ vector<Machine> PrepareSchedule() {
     double actTime = 0.0;
     int bestIter = 0;
     double bestTime = DBL_MAX;
-    //for(int island = 0; island < 10; island ++)
-    //{
+
     Init(machineVect);
-    //cout << "Island: " << island << endl;
+
     for (int i = 0; i < maxIter; i++) //pętla główna programu, w niej się wykonują krzyżowania, sortowania itd
     {
+        if (((i + 1) % 200 == 0) && (numOfCrossingPairs > 1)) {
+            numOfCrossingPairs--;
+            cout << "numOfCrossingPairs: " << numOfCrossingPairs << endl;
+            for (int j = 0; j < machineNumber; j++)
+                machineVect[j] = bestIndivuals[j];
+        }
         actTime = CountFitness(machineVect, matrixETC);
         if (actTime < bestTime) {
             for (int j = 0; j < machineNumber; j++)
@@ -314,8 +342,8 @@ vector<Machine> PrepareSchedule() {
                 k = rand() % numOfCrossingPairs + (machineNumber - numOfCrossingPairs);
             } while (machineVect[k].isUsed);
 
-            point = rand() % taskPerMachine;
-            Crossing(j, k, point, machineVect);
+
+            Crossing(j, k, machineVect);
             machineVect[j].isUsed = 1; // ustawienie flagi aby nie brano już tych maszyn
             machineVect[k].isUsed = 1;
 
@@ -331,143 +359,30 @@ vector<Machine> PrepareSchedule() {
         //		k = rand() % (machineNumber / 2 - num) + machineNumber / 2;
         //	} while (machineVect[k].isUsed || j == k);
 
-        //	point = rand() % taskPerMachine;
-        //	Crossing(j, k, point, machineVect);
+        //	Crossing(j, k, machineVect);
         //	machineVect[j].isUsed = 1;
         //	machineVect[k].isUsed = 1;
         //}
 
         sort(bestIndivuals.begin(), bestIndivuals.end(), Match);
 
-        //        if (prev_value != bestIndivuals[9].fitness) // wyswietli sie tylko wtedy gdy nastapia jakies zmiany
-        //        {
-        //            cout << "Najsz:  " << bestIndivuals[0].fitness
-        //                    << " avg:  " << bestIndivuals[9].fitness // srodkowy
-        //                    << " Najw:  " << bestIndivuals[19].fitness // roznica
-        //                    << " DIFF:   " << abs(bestIndivuals[0].fitness - bestIndivuals[19].fitness)
-        //                    << " Iter:   " << i
-        //                    << endl;
-        //        }
-        prev_value = bestIndivuals[19].fitness;
+        if (prev_value != bestIndivuals[bestIndivuals.size() - 1].fitness) // wyswietli sie tylko wtedy gdy nastapia jakies zmiany
+        {
+            cout << "Najsz:  " << bestIndivuals[0].fitness
+                    << "\tSr:  " << bestIndivuals[(int) (bestIndivuals.size() / 2)].fitness // srodkowy
+                    << "\tNajw:  " << bestIndivuals[bestIndivuals.size() - 1].fitness // roznica
+                    << "\tDIFF:   " << abs(bestIndivuals[0].fitness - bestIndivuals[bestIndivuals.size() - 1].fitness)
+                    << "\tIter:   " << i
+                    << endl;
+        }
+        prev_value = bestIndivuals[bestIndivuals.size() - 1].fitness;
     }
-
+    cout << "Koniec procesu ewolucyjnego" << endl;
     //cout << endl;
     //PrintSolution(bestIndivuals);
     return bestIndivuals;
 }
 
-/*
-vector<Machine> PrepareSchedule() {
-    //    vector<Machine> machineVect(machineNumber);
-    vector<Machine> tmpVect(machineNumber);
-
-    //vector <vector <double>> matrixETC(machineNumber, vector<double>(taskNumber));
-    //vector <double> vectETC(taskNumber);
-    vector<Machine> bestIndivuals(machineNumber);
-
-    //ETCGenerator(taskNumber, machineNumber);										To jest wazne - gdy to odkomentujemy to stworzy sie nowa macierz ETC sluzaca dotestow,lepiej nie odkomentowywac bo juz zostala stworzona
-
-    int j = 0;
-    int k = 0;
-    int point;
-//#ifdef ScreenLog
-    double prev_value = 0; // uzywany do zapamietywania wartosci poprzedniej
-//#endif
-
-    //LoadVectETC(vectETC);
-
-
-    double actTime = 0.0;
-    //int bestIter = 0;
-    double bestTime = DBL_MAX;
-    vector<Machine> machineVect(machineNumber);
-    for (int island = 0; island < maxIslands; island++) {
-        machineVect.clear();
-        bestIndivuals.clear();
-        actTime = 0.0;
-        bestTime = DBL_MAX;
-        j=0;
-        k=0;
-        //Init(vectETC, machineVect);
-        Init(machineVect);
-        //cout << "Island: " << island << endl;
-        for (int i = 0; i < maxIter; i++) //pętla główna programu, w niej się wykonują krzyżowania, sortowania itd
-        {
-            actTime = CountFitness(machineVect, matrixETC);
-            if (actTime < bestTime) {
-                for (int j = 0; j < machineNumber; j++)
-                    bestIndivuals[j] = machineVect[j];
-
-                //bestIter = i;
-                bestTime = actTime;
-            }
-            //SELECKCJA KRZYŻOWANIE ELITARYZM
-            sort(machineVect.begin(), machineVect.end(), Match);
-
-            for (int i = 0; i < machineNumber; i++) //wyzerowanie flagi uzycia
-                machineVect[i].isUsed = 0;
-
-            int num = 4; // najoptymalniej 1-2
-
-            for (int i = machineNumber - num; i < machineNumber; i++) // krzyzuje najszybsze z najwolniejszymi
-            {
-                do {
-                    j = rand() % num;
-                } while (machineVect[j].isUsed);
-                do {
-                    k = rand() % num + (machineNumber - num);
-                } while (machineVect[k].isUsed);
-
-                point = rand() % taskPerMachine;
-                Crossing(j, k, point, machineVect);
-                machineVect[j].isUsed = 1; // ustawienie flagi aby nie brano już tych maszyn
-                machineVect[k].isUsed = 1;
-
-            }
-            //for (int i = 0; i < num; i++)		//krzyzuje maszyny ze srodka
-            //{
-            //	do
-            //	{
-            //		j = rand() % (machineNumber - num) + num;
-            //	} while (machineVect[j].isUsed);
-            //	do
-            //	{
-            //		k = rand() % (machineNumber / 2 - num) + machineNumber / 2;
-            //	} while (machineVect[k].isUsed || j == k);
-
-            //	point = rand() % taskPerMachine;
-            //	Crossing(j, k, point, machineVect);
-            //	machineVect[j].isUsed = 1;
-            //	machineVect[k].isUsed = 1;
-            //}
-
-            sort(bestIndivuals.begin(), bestIndivuals.end(), Match);
-//#ifdef ScreenLog
-            if (prev_value != bestIndivuals[9].fitness) // wyswietli sie tylko wtedy gdy nastapia jakies zmiany
-            {
-                cout << "Najsz:  " << bestIndivuals[0].fitness
-                        << " avg:  " << bestIndivuals[9].fitness // srodkowy
-                        << " Najw:  " << bestIndivuals[19].fitness // roznica
-                        << " DIFF:   " << abs(bestIndivuals[0].fitness - bestIndivuals[19].fitness)
-                        << " Iter:   " << i
-                        << endl;
-            }
-            prev_value = bestIndivuals[9].fitness;
-//#endif
-
-
-        }
-        // pobierz makespan
-        log_makespans.push_back(bestIndivuals[19].fitness);
-    }
-#ifdef ScreenLog
-    cout << endl;
-    PrintSolution(bestIndivuals);
-#endif
-
-    return bestIndivuals;
-}
- */
 void PrepareSecureSchedule(int maxIter, int numOfCrossingPairs, int iteration) {
     vector<Machine> machineVect(machineNumber);
     vector<Machine> bestIndivuals(machineNumber);
@@ -475,7 +390,6 @@ void PrepareSecureSchedule(int maxIter, int numOfCrossingPairs, int iteration) {
 
     int j = 0;
     int k = 0;
-    int point;
 
     double avgTime = 0.0;
     double actTime = 0.0;
@@ -517,8 +431,7 @@ void PrepareSecureSchedule(int maxIter, int numOfCrossingPairs, int iteration) {
                 k = rand() % numOfCrossingPairs + (machineNumber - numOfCrossingPairs);
             } while (machineVect[k].isUsed);
 
-            point = rand() % taskPerMachine;
-            Crossing(j, k, point, machineVect);
+            Crossing(j, k, machineVect);
             machineVect[j].isUsed = 1; // ustawienie flagi aby nie brano już tych maszyn
             machineVect[k].isUsed = 1;
 
@@ -579,7 +492,6 @@ double SL_PrepareSchedule(int maxIter, int numOfCrossingPairs, int securityLevel
 
     int j = 0;
     int k = 0;
-    int point;
 
     double actTime = 0.0;
     int bestIter = 0;
@@ -612,8 +524,7 @@ double SL_PrepareSchedule(int maxIter, int numOfCrossingPairs, int securityLevel
                 k = rand() % numOfCrossingPairs + (machineNumber / securityLevels - numOfCrossingPairs);
             } while (machineVect[k].isUsed);
 
-            point = rand() % taskPerMachine;
-            Crossing(j, k, point, machineVect);
+            Crossing(j, k, machineVect);
             machineVect[j].isUsed = 1; // ustawienie flagi aby nie brano już tych maszyn
             machineVect[k].isUsed = 1;
 
@@ -630,7 +541,6 @@ double UNI_PrepareSchedule(int maxIter, int numOfCrossingPairs) {
 
     int j = 0;
     int k = 0;
-    int point;
 
     double actTime = 0.0;
     int bestIter = 0;
@@ -663,8 +573,7 @@ double UNI_PrepareSchedule(int maxIter, int numOfCrossingPairs) {
                 k = rand() % numOfCrossingPairs + (machineNumber - numOfCrossingPairs);
             } while (machineVect[k].isUsed);
 
-            point = rand() % taskPerMachine;
-            Crossing(j, k, point, machineVect);
+            Crossing(j, k, machineVect);
             machineVect[j].isUsed = 1; // ustawienie flagi aby nie brano już tych maszyn
             machineVect[k].isUsed = 1;
 
@@ -699,7 +608,7 @@ void SL_exportToCSV(vector<double> *SL_makespans, vector<double> *UNI_makespans,
 
     fsout << "Powtorzenie;best makespan security level; best makespan universal\n";
 
-    for (int i; i < repeats; ++i) {
+    for (int i = 0; i < repeats; ++i) {
         fsout << i << ";" << (*SL_makespans)[i] << ";" << (*UNI_makespans)[i] << '\n';
         SL_sumMakespan += (*SL_makespans)[i];
         UNI_sumMakespan += (*UNI_makespans)[i];

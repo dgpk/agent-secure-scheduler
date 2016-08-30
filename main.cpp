@@ -576,9 +576,9 @@ int main(int argc, char **argv) {
     int choice = 0;
     while (choice == 0) {
         cout << "Wybierz doswiadczenie:" << endl;
-        cout << "1 - round robin\n2 - GA\n3 - only schedule with security factor\n4 - only schedule with security levels" << endl;
+        cout << "1 - round robin\n2 - GA\n3 - only schedule with security factor\n4 - only schedule with security levels\n5 - only GA (standard)" << endl;
         cin >> choice;
-        if (choice < 1 || choice > 4)
+        if (choice < 1 || choice > 5)
             choice = 0;
     }
 
@@ -847,8 +847,6 @@ int main(int argc, char **argv) {
         }
         case 4:
         {
-
-            //TODO - security levels
             int epochs = 1000, repeats = 100, securityLevels = 4, numOfCrossingPairs = 1; // numOfCrossingPairs 1 lub 2 !!!!
             double makespan = 0.0, tmp_makespan;
             vector<double> SL_makespans, UNI_makespans;
@@ -868,6 +866,12 @@ int main(int argc, char **argv) {
             }
             SL_exportToCSV(&SL_makespans, &UNI_makespans, epochs, numOfCrossingPairs, securityLevels, repeats);
             break;
+        }
+        case 5:
+        {
+            // Only GA
+            initETCMatrix();
+            PrepareSchedule();
         }
     }
 
